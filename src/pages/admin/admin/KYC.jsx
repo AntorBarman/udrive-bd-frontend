@@ -8,7 +8,6 @@ import {
   Car,
   FileText,
   Shield,
-  AlertCircle,
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import Button from '../../components/ui/Button';
@@ -30,8 +29,6 @@ const KYC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [actionLoading, setActionLoading] = useState(null);
-  const [rejectModal, setRejectModal] = useState(null);
-  const [rejectReason, setRejectReason] = useState('');
   
   const fetchDocuments = useCallback(async () => {
     if (!accessToken) return;
@@ -46,9 +43,7 @@ const KYC = () => {
     } catch (error) {
       console.error('❌ Failed to fetch KYC:', error);
       if (error.response?.status === 404) {
-        setDocuments([]);
-      } else if (error.response?.status === 401) {
-        setError('Session expired. Please login again.');
+        setError('KYC endpoint not available. Please check backend.');
       } else {
         setError(error.response?.data?.message || 'Failed to load KYC documents');
       }
@@ -67,7 +62,7 @@ const KYC = () => {
     setActionLoading(docId);
     try {
       await api.patch(`/admin/kyc/${docId}/approve`);
-      alert('Document approved successfully');
+      alert('Document approved');
       fetchDocuments();
     } catch (error) {
       alert(error.response?.data?.message || 'Approval failed');
@@ -76,18 +71,14 @@ const KYC = () => {
     }
   };
   
-  const handleRejectConfirm = async () => {
-    if (!rejectReason.trim()) {
-      alert('Please provide a rejection reason');
-      return;
-    }
+  const handleReject = async (docId) => {
+    const reason = prompt('Enter rejection reason:');
+    if (!reason) return;
     
-    setActionLoading(rejectModal);
+    setActionLoading(docId);
     try {
-      await api.patch(`/admin/kyc/${rejectModal}/reject`, { reason: rejectReason });
+      await api.patch(`/admin/kyc/${docId}/reject`, { reason });
       alert('Document rejected');
-      setRejectModal(null);
-      setRejectReason('');
       fetchDocuments();
     } catch (error) {
       alert(error.response?.data?.message || 'Rejection failed');
@@ -99,22 +90,19 @@ const KYC = () => {
   const getStatusConfig = (status) => {
     const configs = {
       approved: { variant: 'success', icon: CheckCircle, label: 'Approved' },
-      pending: { variant: 'warning', icon: Clock, label: 'Pending Review' },
+      pending: { variant: 'warning', icon: Clock, label: 'Pending' },
       rejected: { variant: 'danger', icon: XCircle, label: 'Rejected' },
     };
     return configs[status] || configs.pending;
   };
   
-  const getDocumentIcon = (type) => {
-    if (type?.includes('vehicle') || type?.includes('insurance')) return Car;
-    if (type?.includes('nid') || type?.includes('driving')) return User;
-    return FileText;
-  };
-  
   const filteredDocuments = documents.filter((doc) => {
-    const searchStr = `${doc.user_name || ''} ${doc.document_type || ''}`.toLowerCase();
-    const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
+    const matchesSearch = 
+      (doc.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (doc.document_type || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
     const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
+    
     return matchesSearch && matchesStatus;
   });
   
@@ -123,6 +111,16 @@ const KYC = () => {
       <div className="flex justify-center py-20">
         <Spinner size="lg" />
       </div>
+    );
+  }
+  
+  if (error && documents.length === 0) {
+    return (
+      <ErrorState
+        title="Failed to Load KYC"
+        message={error}
+        onRetry={fetchDocuments}
+      />
     );
   }
   
@@ -166,57 +164,45 @@ const KYC = () => {
         </div>
       </div>
       
-      {/* Error State */}
-      {error && documents.length === 0 && (
-        <ErrorState
-          title="Failed to Load KYC"
-          message={error}
-          onRetry={fetchDocuments}
-        />
-      )}
-      
       {/* Documents List */}
-      {!error && filteredDocuments.length > 0 ? (
+      {filteredDocuments.length > 0 ? (
         <div className="space-y-4">
           {filteredDocuments.map((doc) => {
             const statusConfig = getStatusConfig(doc.status);
             const StatusIcon = statusConfig.icon;
-            const DocIcon = getDocumentIcon(doc.document_type);
+            const DocIcon = doc.document_type?.includes('vehicle') ? Car : User;
             
             return (
               <Card key={doc.id} className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
+                <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
                   <DocIcon className="w-6 h-6 text-slate-600" />
                 </div>
                 
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
                     <p className="font-medium text-slate-900">
-                      {doc.document_type?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Document'}
+                      {doc.document_type?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                     </p>
                     <Badge variant={statusConfig.variant} size="sm">
                       <StatusIcon className="w-3 h-3 mr-1" />
                       {statusConfig.label}
                     </Badge>
                   </div>
-                  
                   <p className="text-sm text-slate-500 mt-1">
-                    {doc.user_name || 'Unknown User'}
-                    {doc.user_email && ` • ${doc.user_email}`}
+                    {doc.user_name || 'Unknown User'} • {doc.user_email || ''}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">
                     Submitted: {formatDate(doc.created_at)}
                   </p>
                   
                   {doc.rejection_reason && (
-                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      {doc.rejection_reason}
+                    <p className="text-xs text-red-600 mt-1">
+                      Reason: {doc.rejection_reason}
                     </p>
                   )}
                 </div>
                 
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2">
                   {doc.status === 'pending' && (
                     <>
                       <Button
@@ -231,7 +217,7 @@ const KYC = () => {
                       <Button
                         size="sm"
                         variant="danger"
-                        onClick={() => setRejectModal(doc.id)}
+                        onClick={() => handleReject(doc.id)}
                       >
                         <XCircle className="w-4 h-4" />
                         Reject
@@ -244,48 +230,11 @@ const KYC = () => {
           })}
         </div>
       ) : (
-        !error && (
-          <EmptyState
-            title="No KYC Documents"
-            description="User verification documents will appear here once submitted."
-            icon={Shield}
-          />
-        )
-      )}
-      
-      {/* Reject Modal */}
-      {rejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setRejectModal(null)} />
-          <div className="relative bg-white rounded-xl p-6 max-w-md w-full mx-4">
-            <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <XCircle className="w-5 h-5 text-red-600" />
-              Reject Document
-            </h3>
-            
-            <textarea
-              rows="3"
-              placeholder="Enter rejection reason..."
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg p-3 text-sm mb-4"
-            />
-            
-            <div className="flex gap-3">
-              <Button variant="outline" fullWidth onClick={() => setRejectModal(null)}>
-                Cancel
-              </Button>
-              <Button 
-                variant="danger" 
-                fullWidth 
-                onClick={handleRejectConfirm}
-                isLoading={actionLoading === rejectModal}
-              >
-                Confirm Reject
-              </Button>
-            </div>
-          </div>
-        </div>
+        <EmptyState
+          title="No KYC Documents"
+          description="User verification documents will appear here."
+          icon={Shield}
+        />
       )}
     </div>
   );

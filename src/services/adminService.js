@@ -1,7 +1,7 @@
 import api from './api';
 
 const adminService = {
-  // Get stats
+  // Get admin stats
   getStats: async () => {
     const response = await api.get('/admin/stats');
     return response.data;

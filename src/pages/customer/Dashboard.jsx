@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Car, 
@@ -5,56 +6,134 @@ import {
   Wallet, 
   Clock, 
   ChevronRight,
-  Plus,
   Search,
+  User,
+  Shield,
+  AlertCircle,
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import StatCard from '../../components/dashboard/StatCard';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Card from '../../components/ui/Card';
+import Spinner from '../../components/ui/Spinner';
+import ErrorState from '../../components/ui/ErrorState';
+import EmptyState from '../../components/ui/EmptyState';
+import bookingService from '../../services/bookingService';
+import walletService from '../../services/walletService';
+import api from '../../services/api';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
-const Dashboard = () => {
-  const { user } = useSelector((state) => state.auth);
+const CustomerDashboard = () => {
+  const { user, accessToken } = useSelector((state) => state.auth);
   
-  // Mock data
+  const [bookings, setBookings] = useState([]);
+  const [balance, setBalance] = useState(null);
+  const [kycApproved, setKycApproved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  const fetchDashboardData = useCallback(async () => {
+    if (!accessToken) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch bookings
+      const bookingsResponse = await bookingService.getMyBookings({ page: 1, limit: 20 });
+      setBookings(bookingsResponse.data || []);
+      
+      // Fetch wallet
+      try {
+        const balanceResponse = await walletService.getBalance();
+        setBalance(balanceResponse.data || balanceResponse);
+      } catch (walletError) {
+        console.warn('Wallet not available:', walletError.message);
+        setBalance({ currentBalance: 0 });
+      }
+      
+      // Check KYC
+      try {
+        const kycResponse = await api.get('/documents/my');
+        const docs = kycResponse.data.data || [];
+        const approvedCount = docs.filter((d) => d.status === 'approved').length;
+        setKycApproved(approvedCount >= 2);
+      } catch (kycError) {
+        setKycApproved(false);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard:', error);
+      setError(error.response?.data?.message || 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  }, [accessToken]);
+  
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <ErrorState
+        title="Failed to Load Dashboard"
+        message={error}
+        onRetry={fetchDashboardData}
+      />
+    );
+  }
+  
+  const totalBookings = bookings.length;
+  const upcomingBookings = bookings.filter((b) => b.status === 'confirmed' || b.status === 'pending_payment');
+  const completedBookings = bookings.filter((b) => b.status === 'completed');
+  const walletBalance = balance?.currentBalance || balance?.balance || 0;
+  
   const stats = [
-    { icon: Calendar, label: 'Total Bookings', value: '12', change: 8, color: 'blue' },
-    { icon: Clock, label: 'Upcoming Trips', value: '2', change: null, color: 'green' },
-    { icon: Car, label: 'Completed Trips', value: '10', change: 15, color: 'purple' },
-    { icon: Wallet, label: 'Wallet Balance', value: '৳2,500', change: null, color: 'yellow' },
+    { icon: Calendar, label: 'Total Bookings', value: totalBookings, color: 'blue' },
+    { icon: Clock, label: 'Upcoming Trips', value: upcomingBookings.length, color: 'green' },
+    { icon: Car, label: 'Completed Trips', value: completedBookings.length, color: 'purple' },
+    { icon: Wallet, label: 'Wallet Balance', value: formatCurrency(walletBalance), color: 'yellow' },
   ];
   
-  const upcomingBookings = [
-    {
-      id: 'b1',
-      vehicle: 'Toyota Corolla 2022',
-      pickup_date: '2026-08-25',
-      return_date: '2026-08-28',
-      total_amount: 15000,
-      status: 'confirmed',
-      image: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=100&h=80&fit=crop',
-    },
-    {
-      id: 'b2',
-      vehicle: 'Honda Civic 2021',
-      pickup_date: '2026-09-05',
-      return_date: '2026-09-07',
-      total_amount: 12000,
-      status: 'pending_payment',
-      image: 'https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?w=100&h=80&fit=crop',
-    },
-  ];
-  
-  const recentActivities = [
-    { id: 'a1', text: 'Booking confirmed for Toyota Corolla', date: '2 hours ago', type: 'booking' },
-    { id: 'a2', text: 'Payment received ৳15,000', date: '2 hours ago', type: 'payment' },
-    { id: 'a3', text: 'Reviewed Honda Civic', date: '1 day ago', type: 'review' },
-    { id: 'a4', text: 'Added security deposit ৳7,000', date: '3 days ago', type: 'deposit' },
-  ];
+  const getStatusVariant = (status) => {
+    const variants = {
+      'pending_payment': 'warning',
+      'confirmed': 'success',
+      'ongoing': 'primary',
+      'completed': 'default',
+      'cancelled': 'danger',
+    };
+    return variants[status] || 'default';
+  };
   
   return (
     <div>
+      {/* KYC Alert */}
+      {!kycApproved && (
+        <Link 
+          to="/kyc" 
+          className="block mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center gap-3 hover:bg-yellow-100 transition-colors"
+        >
+          <AlertCircle className="w-6 h-6 text-yellow-600 shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium text-yellow-800">Complete KYC Verification</p>
+            <p className="text-sm text-yellow-600">
+              Upload your NID and Driving License to book vehicles.
+            </p>
+          </div>
+          <Shield className="w-5 h-5 text-yellow-600 shrink-0" />
+        </Link>
+      )}
+      
       {/* Welcome */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900 mb-1">
@@ -81,19 +160,19 @@ const Dashboard = () => {
         <Link to="/bookings" className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all">
           <Calendar className="w-6 h-6 text-blue-600 mb-2" />
           <p className="font-medium text-slate-900">My Bookings</p>
-          <p className="text-xs text-slate-500">View all trips</p>
+          <p className="text-xs text-slate-500">{totalBookings} total</p>
         </Link>
         
         <Link to="/wallet" className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all">
           <Wallet className="w-6 h-6 text-green-600 mb-2" />
           <p className="font-medium text-slate-900">Wallet</p>
-          <p className="text-xs text-slate-500">Balance & transactions</p>
+          <p className="text-xs text-slate-500">{formatCurrency(walletBalance)}</p>
         </Link>
         
         <Link to="/profile" className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all">
-          <Plus className="w-6 h-6 text-purple-600 mb-2" />
+          <User className="w-6 h-6 text-purple-600 mb-2" />
           <p className="font-medium text-slate-900">Profile</p>
-          <p className="text-xs text-slate-500">Update information</p>
+          <p className="text-xs text-slate-500">Update info</p>
         </Link>
       </div>
       
@@ -108,23 +187,22 @@ const Dashboard = () => {
         
         {upcomingBookings.length > 0 ? (
           <div className="space-y-4">
-            {upcomingBookings.map((booking) => (
+            {upcomingBookings.slice(0, 3).map((booking) => (
               <Card key={booking.id} hoverable className="flex items-center gap-4">
-                <img
-                  src={booking.image}
-                  alt={booking.vehicle}
-                  className="w-24 h-20 object-cover rounded-lg"
-                />
                 <div className="flex-1">
-                  <h3 className="font-semibold text-slate-900">{booking.vehicle}</h3>
+                  <h3 className="font-semibold text-slate-900">
+                    {booking.brand === booking.model
+                      ? `${booking.brand} ${booking.year}`
+                      : `${booking.brand} ${booking.model} ${booking.year}`}
+                  </h3>
                   <p className="text-sm text-slate-500">
-                    {booking.pickup_date} → {booking.return_date}
+                    {formatDate(booking.pickup_date)} → {formatDate(booking.return_date)}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-slate-900">৳{booking.total_amount.toLocaleString()}</p>
-                  <Badge variant={booking.status === 'confirmed' ? 'success' : 'warning'}>
-                    {booking.status.replace('_', ' ')}
+                  <p className="font-semibold">{formatCurrency(booking.total_amount)}</p>
+                  <Badge variant={getStatusVariant(booking.status)} size="sm">
+                    {booking.status.replace(/_/g, ' ')}
                   </Badge>
                 </div>
               </Card>
@@ -137,21 +215,54 @@ const Dashboard = () => {
         )}
       </div>
       
-      {/* Recent Activity */}
+      {/* Recent Bookings */}
       <div>
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Activity</h2>
-        <Card className="divide-y divide-slate-100">
-          {recentActivities.map((activity) => (
-            <div key={activity.id} className="py-3 flex items-center gap-3">
-              <div className="w-2 h-2 bg-blue-600 rounded-full" />
-              <p className="flex-1 text-sm text-slate-700">{activity.text}</p>
-              <span className="text-xs text-slate-400">{activity.date}</span>
-            </div>
-          ))}
-        </Card>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Bookings</h2>
+        
+        {bookings.length > 0 ? (
+          <Card className="divide-y divide-slate-100 p-0">
+            {bookings.slice(0, 5).map((booking) => (
+              <Link
+                key={booking.id}
+                to={`/bookings/${booking.id}`}
+                className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex-1">
+                  <p className="font-medium text-slate-900">
+                    {booking.brand === booking.model
+                      ? `${booking.brand} ${booking.year}`
+                      : `${booking.brand} ${booking.model} ${booking.year}`}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {formatDate(booking.pickup_date)} → {formatDate(booking.return_date)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold">{formatCurrency(booking.total_amount)}</p>
+                  <Badge variant={getStatusVariant(booking.status)} size="sm">
+                    {booking.status.replace(/_/g, ' ')}
+                  </Badge>
+                </div>
+              </Link>
+            ))}
+          </Card>
+        ) : (
+          <EmptyState
+            title="No Bookings Yet"
+            description="Start by browsing available vehicles."
+            action={
+              <Link to="/vehicles">
+                <Button>
+                  <Search className="w-4 h-4" />
+                  Browse Cars
+                </Button>
+              </Link>
+            }
+          />
+        )}
       </div>
     </div>
   );
 };
 
-export default Dashboard;
+export default CustomerDashboard;

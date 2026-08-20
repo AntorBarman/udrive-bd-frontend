@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Shield, 
@@ -8,59 +8,156 @@ import {
   FileText,
   User,
   Car,
+  ChevronLeft,
 } from 'lucide-react';
+import { useSelector } from 'react-redux';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Card from '../../components/ui/Card';
-import { pendingVehicles } from '../../mocks/adminData';
+import Spinner from '../../components/ui/Spinner';
+import ErrorState from '../../components/ui/ErrorState';
+import adminService from '../../services/adminService';
 
 const VehicleReview = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { accessToken } = useSelector((state) => state.auth);
+  
+  const [vehicle, setVehicle] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   
-  const vehicle = pendingVehicles.find((v) => v.id === id) || pendingVehicles[0];
+  useEffect(() => {
+    if (accessToken && id) {
+      fetchVehicle();
+    }
+  }, [accessToken, id]);
   
-  const handleApprove = () => {
-    alert('Vehicle approved successfully!');
-    navigate('/admin/vehicles');
+  const fetchVehicle = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch all vehicles and find this one
+      const response = await adminService.getAllVehicles();
+      const vehicles = response.data || [];
+      const found = vehicles.find((v) => v.id === id);
+      setVehicle(found || null);
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to load vehicle');
+    } finally {
+      setLoading(false);
+    }
   };
   
-  const handleReject = () => {
+  const handleApprove = async () => {
+    if (!confirm('Approve this vehicle?')) return;
+    
+    setActionLoading(true);
+    try {
+      await adminService.approveVehicle(id);
+      alert('Vehicle approved successfully!');
+      navigate('/admin/vehicles');
+    } catch (error) {
+      alert(error.response?.data?.message || 'Approval failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  
+  const handleReject = async () => {
     if (!rejectReason.trim()) {
       alert('Please provide a rejection reason');
       return;
     }
-    alert('Vehicle rejected');
-    navigate('/admin/vehicles');
+    
+    setActionLoading(true);
+    try {
+      await adminService.rejectVehicle(id, rejectReason);
+      alert('Vehicle rejected');
+      navigate('/admin/vehicles');
+    } catch (error) {
+      alert(error.response?.data?.message || 'Rejection failed');
+    } finally {
+      setActionLoading(false);
+    }
   };
+  
+  const handleSuspend = async () => {
+    if (!confirm('Suspend this vehicle?')) return;
+    
+    setActionLoading(true);
+    try {
+      await adminService.suspendVehicle(id);
+      alert('Vehicle suspended');
+      navigate('/admin/vehicles');
+    } catch (error) {
+      alert(error.response?.data?.message || 'Suspension failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <ErrorState
+        title="Failed to Load Vehicle"
+        message={error}
+        onRetry={fetchVehicle}
+      />
+    );
+  }
+  
+  if (!vehicle) {
+    return (
+      <div className="text-center py-20">
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Vehicle Not Found</h2>
+        <button onClick={() => navigate('/admin/vehicles')} className="text-blue-600 hover:underline">
+          ← Back to Vehicles
+        </button>
+      </div>
+    );
+  }
   
   return (
     <div>
-      <div className="mb-8">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-sm text-slate-500 hover:text-blue-600 mb-2"
-        >
-          ← Back
-        </button>
-        <h1 className="text-2xl font-bold text-slate-900">Review Vehicle</h1>
-      </div>
+      <button
+        onClick={() => navigate('/admin/vehicles')}
+        className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 mb-4"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        Back
+      </button>
+      
+      <h1 className="text-2xl font-bold text-slate-900 mb-6">Review Vehicle</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Vehicle Info */}
+        {/* Main Info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Image */}
-          <Card className="overflow-hidden p-0">
-            <img
-              src={vehicle.image_url}
-              alt={`${vehicle.brand} ${vehicle.model}`}
-              className="w-full h-64 object-cover"
-            />
-          </Card>
+          {vehicle.primary_image && (
+            <Card className="overflow-hidden p-0">
+              <img
+                src={vehicle.primary_image}
+                alt={`${vehicle.brand} ${vehicle.model}`}
+                className="w-full h-64 object-cover"
+                crossOrigin="anonymous"
+              />
+            </Card>
+          )}
           
-          {/* Basic Info */}
+          {/* Vehicle Info */}
           <Card>
             <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Car className="w-5 h-5 text-blue-600" />
@@ -81,36 +178,33 @@ const VehicleReview = () => {
               </div>
               <div>
                 <p className="text-xs text-slate-500">Daily Rate</p>
-                <p className="font-medium">৳{vehicle.daily_rate.toLocaleString()}</p>
+                <p className="font-medium">৳{Number(vehicle.daily_rate).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Vehicle Type</p>
+                <p className="font-medium capitalize">{vehicle.vehicle_type}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Status</p>
+                <Badge variant={vehicle.status === 'approved' ? 'success' : vehicle.status === 'pending' ? 'warning' : 'danger'}>
+                  {vehicle.status}
+                </Badge>
               </div>
             </div>
           </Card>
           
           {/* Owner Info */}
-          <Card>
-            <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <User className="w-5 h-5 text-blue-600" />
-              Owner Information
-            </h2>
-            <p className="font-medium text-slate-900">{vehicle.owner_name}</p>
-            <p className="text-sm text-slate-500">{vehicle.owner_phone}</p>
-          </Card>
-          
-          {/* Documents */}
-          <Card>
-            <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" />
-              Submitted Documents
-            </h2>
-            <div className="flex flex-wrap gap-3">
-              {vehicle.documents.map((doc) => (
-                <Badge key={doc} variant="primary">
-                  <FileText className="w-3 h-3 mr-1" />
-                  {doc}
-                </Badge>
-              ))}
-            </div>
-          </Card>
+          {vehicle.owner_name && (
+            <Card>
+              <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <User className="w-5 h-5 text-blue-600" />
+                Owner Information
+              </h2>
+              <p className="font-medium text-slate-900">{vehicle.owner_name}</p>
+              <p className="text-sm text-slate-500">{vehicle.owner_phone}</p>
+              <p className="text-sm text-slate-500">{vehicle.owner_email}</p>
+            </Card>
+          )}
         </div>
         
         {/* Actions */}
@@ -119,32 +213,27 @@ const VehicleReview = () => {
             <h3 className="font-semibold text-slate-900 mb-4">Approval Actions</h3>
             
             <div className="space-y-3">
-              <Button fullWidth variant="success" onClick={handleApprove}>
-                <CheckCircle className="w-4 h-4" />
-                Approve Vehicle
-              </Button>
+              {vehicle.status !== 'approved' && (
+                <Button fullWidth variant="success" onClick={handleApprove} isLoading={actionLoading}>
+                  <CheckCircle className="w-4 h-4" />
+                  Approve Vehicle
+                </Button>
+              )}
               
-              <Button fullWidth variant="danger" onClick={() => setRejectModal(true)}>
-                <XCircle className="w-4 h-4" />
-                Reject Vehicle
-              </Button>
+              {vehicle.status !== 'rejected' && (
+                <Button fullWidth variant="danger" onClick={() => setRejectModal(true)}>
+                  <XCircle className="w-4 h-4" />
+                  Reject Vehicle
+                </Button>
+              )}
               
-              <Button fullWidth variant="outline">
-                <AlertCircle className="w-4 h-4" />
-                Request More Info
-              </Button>
+              {vehicle.status === 'approved' && (
+                <Button fullWidth variant="outline" onClick={handleSuspend}>
+                  <AlertCircle className="w-4 h-4" />
+                  Suspend Vehicle
+                </Button>
+              )}
             </div>
-          </Card>
-          
-          {/* Verification Status */}
-          <Card>
-            <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-green-600" />
-              Verification
-            </h3>
-            <p className="text-sm text-slate-500">
-              All documents verified. Vehicle ready for approval.
-            </p>
           </Card>
         </div>
       </div>
@@ -158,7 +247,7 @@ const VehicleReview = () => {
             <textarea
               rows="4"
               className="w-full border border-slate-200 rounded-lg p-3 text-sm mb-4"
-              placeholder="Please provide a reason for rejection..."
+              placeholder="Why are you rejecting this vehicle?"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
             />
@@ -166,7 +255,7 @@ const VehicleReview = () => {
               <Button variant="outline" fullWidth onClick={() => setRejectModal(false)}>
                 Cancel
               </Button>
-              <Button variant="danger" fullWidth onClick={handleReject}>
+              <Button variant="danger" fullWidth onClick={handleReject} isLoading={actionLoading}>
                 Confirm Reject
               </Button>
             </div>
