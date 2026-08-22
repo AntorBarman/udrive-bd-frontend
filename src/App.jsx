@@ -33,6 +33,18 @@ import AdminVehicles from './pages/admin/Vehicles';
 import VehicleReview from './pages/admin/VehicleReview';
 import AdminKYC from './pages/admin/KYC';
 
+import AdminBookings from './pages/admin/Bookings';
+import AdminPayments from './pages/admin/Payments';
+import AdminUsers from './pages/admin/Users';
+import AdminReports from './pages/admin/Reports';
+import AdminAuditLogs from './pages/admin/AuditLogs';
+import AdminBranches from './pages/admin/Branches';
+import BranchDetails from './pages/admin/BranchDetails';
+import VehicleDocuments from './pages/admin/VehicleDocuments';
+import AdminWallets from './pages/admin/Wallets';
+import AdminCommissions from './pages/admin/Commissions';
+
+
 function App() {
   return (
     <Router>
@@ -128,6 +140,64 @@ function App() {
         <Route path="/admin/kyc" element={
           <ProtectedRoute allowedRoles={['admin', 'staff']}>
             <AdminLayout><AdminKYC /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        // Routes
+        <Route path="/admin/bookings" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminBookings /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/payments" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminPayments /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/users" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminUsers /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/reports" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminReports /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        // Route
+        <Route path="/admin/audit-logs" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminAuditLogs /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        // Route
+        <Route path="/admin/branches" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminBranches /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
+
+        // Route
+        <Route path="/admin/branches/:id" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><BranchDetails /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        
+        // Routes
+        <Route path="/admin/vehicle-documents" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><VehicleDocuments /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/wallets" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminWallets /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/commissions" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminCommissions /></AdminLayout>
           </ProtectedRoute>
         } />
       </Routes>
