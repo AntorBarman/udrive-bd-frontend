@@ -53,7 +53,6 @@ const AdminLayout = ({ children }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  // ✅ Grouped Navigation
   const navGroups = [
     {
       label: 'OVERVIEW',
@@ -110,6 +109,31 @@ const AdminLayout = ({ children }) => {
     navigate('/login');
   };
   
+  // ✅ Avatar Component
+  const UserAvatar = ({ size = 'sm' }) => {
+    const sizeClasses = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
+    
+    if (user?.avatar_url) {
+      return (
+        <img 
+          src={user.avatar_url} 
+          alt={user?.name || 'Admin'} 
+          className={`${sizeClasses} rounded-full object-cover shrink-0`}
+          crossOrigin="anonymous"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+      );
+    }
+    
+    return (
+      <div className={`${sizeClasses} bg-blue-600 rounded-full flex items-center justify-center shrink-0`}>
+        <span className="text-xs font-semibold text-white">
+          {user?.name?.[0]?.toUpperCase() || 'A'}
+        </span>
+      </div>
+    );
+  };
+  
   const SidebarContent = () => (
     <aside className={`h-full flex flex-col bg-slate-900 text-white transition-all duration-200 ${
       collapsed ? 'w-16' : 'w-60'
@@ -132,7 +156,7 @@ const AdminLayout = ({ children }) => {
         {!collapsed && <Badge variant="danger" size="xs">Admin</Badge>}
       </div>
       
-      {/* Navigation Groups */}
+      {/* Navigation */}
       <nav className="flex-1 p-2 overflow-y-auto">
         {navGroups.map((group) => (
           <div key={group.label} className="mb-2">
@@ -210,11 +234,9 @@ const AdminLayout = ({ children }) => {
               <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-slate-100 rounded-lg shrink-0">
                 <Menu className="w-4 h-4" />
               </button>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">
-                  {navGroups.flatMap((g) => g.items).find((item) => isActive(item.path))?.label || 'Admin'}
-                </p>
-              </div>
+              <p className="text-sm font-semibold text-slate-900">
+                {navGroups.flatMap((g) => g.items).find((item) => isActive(item.path))?.label || 'Admin'}
+              </p>
             </div>
             
             {/* Search */}
@@ -237,18 +259,20 @@ const AdminLayout = ({ children }) => {
               
               <div className="relative" ref={userMenuRef}>
                 <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-1.5 hover:bg-slate-100 rounded-lg px-2 py-1.5">
-                  <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center">
-                    <span className="text-xs font-semibold text-white">{user?.name?.[0]?.toUpperCase() || 'A'}</span>
-                  </div>
+                  <UserAvatar size="sm" />
                   <ChevronDown className="w-3 h-3 text-slate-500" />
                 </button>
                 
                 {userMenuOpen && (
-                  <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
-                    <div className="px-3 py-2 border-b border-slate-100">
-                      <p className="text-xs font-semibold">{user?.name}</p>
-                      <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
-                      <Badge variant="danger" size="xs" className="mt-1">Admin</Badge>
+                  <div className="absolute right-0 mt-1 w-60 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
+                    {/* User Info with Avatar */}
+                    <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-2.5">
+                      <UserAvatar size="md" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate">{user?.name}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
+                        <Badge variant="danger" size="xs" className="mt-1">Admin</Badge>
+                      </div>
                     </div>
                     
                     <Link to="/admin/settings" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>

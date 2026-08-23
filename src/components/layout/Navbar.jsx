@@ -11,10 +11,6 @@ import {
   User,
   LogOut,
   Calendar,
-  Settings,
-  Shield,
-  FileText,
-  Users,
   Bell,
   Plus,
   TrendingUp,
@@ -38,24 +34,20 @@ const Navbar = () => {
   const isAuthenticated = !!user;
   const role = user?.role || 'public';
   
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setUserMenuOpen(false);
       }
     };
-    
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  // Scroll effect
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 10);
     };
-    
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -67,11 +59,33 @@ const Navbar = () => {
     navigate('/login');
   };
   
-  const isActive = (path) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/');
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
+  
+  // ✅ Avatar Component
+  const UserAvatar = ({ size = 'sm' }) => {
+    const sizeClasses = size === 'sm' ? 'w-7 h-7' : 'w-9 h-9';
+    
+    if (user?.avatar_url) {
+      return (
+        <img 
+          src={user.avatar_url} 
+          alt={user?.name || 'User'} 
+          className={`${sizeClasses} rounded-full object-cover shrink-0`}
+          crossOrigin="anonymous"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+      );
+    }
+    
+    return (
+      <div className={`${sizeClasses} bg-blue-100 rounded-full flex items-center justify-center shrink-0`}>
+        <span className={`${size === 'sm' ? 'text-xs' : 'text-sm'} font-semibold text-blue-600`}>
+          {user?.name?.[0]?.toUpperCase() || 'U'}
+        </span>
+      </div>
+    );
   };
   
-  // Role-based nav links
   const getNavLinks = () => {
     switch (role) {
       case 'admin':
@@ -79,8 +93,6 @@ const Navbar = () => {
           { label: 'Dashboard', path: '/admin', icon: LayoutDashboard },
           { label: 'Vehicles', path: '/admin/vehicles', icon: Car },
           { label: 'Bookings', path: '/admin/bookings', icon: Calendar },
-          { label: 'Payments', path: '/admin/payments', icon: Wallet },
-          { label: 'Users', path: '/admin/users', icon: Users },
         ];
       case 'owner':
         return [
@@ -93,7 +105,6 @@ const Navbar = () => {
         return [
           { label: 'Vehicles', path: '/vehicles', icon: Car },
           { label: 'My Bookings', path: '/bookings', icon: Calendar },
-          { label: 'Wallet', path: '/wallet', icon: Wallet },
         ];
       default:
         return [
@@ -117,13 +128,9 @@ const Navbar = () => {
   
   return (
     <>
-      <header
-        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-          isScrolled 
-            ? 'bg-white shadow-md' 
-            : 'bg-white/95 backdrop-blur-sm border-b border-slate-200'
-        }`}
-      >
+      <header className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
+        isScrolled ? 'bg-white shadow-md' : 'bg-white/95 backdrop-blur-sm border-b border-slate-200'
+      }`}>
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
@@ -145,9 +152,7 @@ const Navbar = () => {
                     key={link.path}
                     to={link.path}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive(link.path)
-                        ? 'text-blue-600 bg-blue-50'
-                        : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50'
+                      isActive(link.path) ? 'text-blue-600 bg-blue-50' : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -158,121 +163,73 @@ const Navbar = () => {
             </div>
             
             {/* Right Side */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {isAuthenticated ? (
                 <>
-                  {/* Notifications */}
                   <button className="hidden sm:flex p-2 hover:bg-slate-100 rounded-lg relative">
                     <Bell className="w-5 h-5 text-slate-600" />
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                   </button>
                   
-                  {/* User Menu */}
                   <div className="relative" ref={userMenuRef}>
                     <button
                       onClick={() => setUserMenuOpen(!userMenuOpen)}
-                      className="flex items-center gap-2 hover:bg-slate-100 rounded-lg px-2 py-1.5 transition-colors"
+                      className="flex items-center gap-1.5 hover:bg-slate-100 rounded-lg px-2 py-1.5"
                     >
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-semibold text-blue-600">
-                          {user.name?.[0]?.toUpperCase() || 'U'}
-                        </span>
-                      </div>
-                      <div className="hidden sm:block text-left">
-                        <p className="text-sm font-medium text-slate-900 leading-tight">
-                          {user.name?.split(' ')[0]}
-                        </p>
-                        <p className="text-xs text-slate-500 capitalize leading-tight">
-                          {user.role}
-                        </p>
-                      </div>
-                      <ChevronDown className="w-4 h-4 text-slate-500" />
+                      <UserAvatar size="sm" />
+                      <ChevronDown className="w-3 h-3 text-slate-500" />
                     </button>
                     
-                    {/* Dropdown */}
                     {userMenuOpen && (
-                      <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-2 z-50">
-                        {/* User Info */}
-                        <div className="px-4 py-3 border-b border-slate-100">
-                          <p className="text-sm font-semibold text-slate-900">{user.name}</p>
-                          <p className="text-xs text-slate-500">{user.email}</p>
-                          <Badge variant={getRoleBadgeVariant(user.role)} size="sm" className="mt-2">
-                            {user.role}
-                          </Badge>
+                      <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
+                        {/* User Info with Avatar */}
+                        <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-2.5">
+                          <UserAvatar size="md" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold truncate">{user?.name}</p>
+                            <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
+                            <Badge variant={getRoleBadgeVariant(user?.role)} size="xs" className="mt-1 capitalize">
+                              {user?.role}
+                            </Badge>
+                          </div>
                         </div>
                         
                         {/* Links */}
                         {role === 'customer' && (
                           <>
-                            <Link
-                              to="/dashboard"
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                              onClick={() => setUserMenuOpen(false)}
-                            >
-                              <LayoutDashboard className="w-4 h-4" /> Dashboard
+                            <Link to="/dashboard" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>
+                              <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
                             </Link>
-                            <Link
-                              to="/bookings"
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                              onClick={() => setUserMenuOpen(false)}
-                            >
-                              <Calendar className="w-4 h-4" /> My Bookings
+                            <Link to="/bookings" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>
+                              <Calendar className="w-3.5 h-3.5" /> My Bookings
                             </Link>
                           </>
                         )}
                         
                         {role === 'owner' && (
                           <>
-                            <Link
-                              to="/owner"
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                              onClick={() => setUserMenuOpen(false)}
-                            >
-                              <LayoutDashboard className="w-4 h-4" /> Dashboard
+                            <Link to="/owner" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>
+                              <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
                             </Link>
-                            <Link
-                              to="/owner/vehicles"
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                              onClick={() => setUserMenuOpen(false)}
-                            >
-                              <Car className="w-4 h-4" /> My Vehicles
+                            <Link to="/owner/vehicles" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>
+                              <Car className="w-3.5 h-3.5" /> My Vehicles
                             </Link>
                           </>
                         )}
                         
                         {role === 'admin' && (
-                          <Link
-                            to="/admin"
-                            className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                            onClick={() => setUserMenuOpen(false)}
-                          >
-                            <LayoutDashboard className="w-4 h-4" /> Admin Panel
+                          <Link to="/admin" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>
+                            <LayoutDashboard className="w-3.5 h-3.5" /> Admin Panel
                           </Link>
                         )}
                         
-                        <Link
-                          to="/profile"
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <User className="w-4 h-4" /> Profile
-                        </Link>
-                        
-                        <Link
-                          to="/wallet"
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <Wallet className="w-4 h-4" /> Wallet
+                        <Link to="/profile" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>
+                          <User className="w-3.5 h-3.5" /> Profile Settings
                         </Link>
                         
                         <hr className="my-1" />
                         
-                        <button
-                          onClick={handleLogout}
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
-                        >
-                          <LogOut className="w-4 h-4" /> Logout
+                        <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 w-full text-left">
+                          <LogOut className="w-3.5 h-3.5" /> Logout
                         </button>
                       </div>
                     )}
@@ -281,24 +238,15 @@ const Navbar = () => {
               ) : (
                 <>
                   <Link to="/login" className="hidden sm:block">
-                    <Button variant="ghost" size="sm">
-                      Login
-                    </Button>
+                    <Button variant="ghost" size="sm">Login</Button>
                   </Link>
                   <Link to="/register">
-                    <Button size="sm">
-                      Register
-                    </Button>
+                    <Button size="sm">Register</Button>
                   </Link>
                 </>
               )}
               
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setMobileMenuOpen(true)}
-                className="md:hidden p-2 rounded-lg hover:bg-slate-100"
-                aria-label="Open menu"
-              >
+              <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-slate-100">
                 <Menu className="w-6 h-6 text-slate-700" />
               </button>
             </div>
@@ -306,16 +254,13 @@ const Navbar = () => {
         </nav>
       </header>
       
-      {/* Spacer */}
       <div className="h-16" />
       
-      {/* Mobile Menu Drawer */}
+      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setMobileMenuOpen(false)} />
-          
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
           <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[85%] bg-white shadow-xl flex flex-col">
-            {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -323,34 +268,22 @@ const Navbar = () => {
                 </div>
                 <span className="text-lg font-bold">UDrive<span className="text-blue-600">BD</span></span>
               </div>
-              <button
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-2 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-5 h-5 text-slate-600" />
+              <button onClick={() => setMobileMenuOpen(false)} className="p-2 rounded-lg hover:bg-slate-100">
+                <X className="w-5 h-5" />
               </button>
             </div>
             
-            {/* User Info */}
+            {/* Mobile User Info with Avatar */}
             {isAuthenticated && (
-              <div className="p-4 border-b border-slate-100 bg-slate-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="font-semibold text-blue-600">
-                      {user.name?.[0]?.toUpperCase() || 'U'}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-900">{user.name}</p>
-                    <Badge variant={getRoleBadgeVariant(user.role)} size="sm">
-                      {user.role}
-                    </Badge>
-                  </div>
+              <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+                <UserAvatar size="md" />
+                <div>
+                  <p className="font-medium text-sm">{user?.name}</p>
+                  <Badge variant={getRoleBadgeVariant(user?.role)} size="xs" className="mt-0.5 capitalize">{user?.role}</Badge>
                 </div>
               </div>
             )}
             
-            {/* Nav Links */}
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
               {navLinks.map((link) => {
                 const Icon = link.icon;
@@ -359,10 +292,8 @@ const Navbar = () => {
                     key={link.path}
                     to={link.path}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                      isActive(link.path)
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'text-slate-700 hover:bg-slate-50'
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium ${
+                      isActive(link.path) ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -374,27 +305,15 @@ const Navbar = () => {
               <hr className="my-2" />
               
               {isAuthenticated ? (
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 w-full"
-                >
-                  <LogOut className="w-5 h-5" />
-                  Logout
+                <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 w-full">
+                  <LogOut className="w-5 h-5" /> Logout
                 </button>
               ) : (
                 <>
-                  <Link
-                    to="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="block px-4 py-3 rounded-lg border border-slate-200 text-center text-slate-700 font-medium"
-                  >
+                  <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-3 rounded-lg border border-slate-200 text-center font-medium">
                     Login
                   </Link>
-                  <Link
-                    to="/register"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="block px-4 py-3 rounded-lg bg-blue-600 text-center text-white font-medium"
-                  >
+                  <Link to="/register" onClick={() => setMobileMenuOpen(false)} className="block px-4 py-3 rounded-lg bg-blue-600 text-center text-white font-medium">
                     Register
                   </Link>
                 </>

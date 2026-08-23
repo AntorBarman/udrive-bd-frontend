@@ -1,7 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import authService from '../../services/authService';
 
-// Safe JSON parse
 const safeJSONParse = (jsonString) => {
   try {
     return jsonString ? JSON.parse(jsonString) : null;
@@ -18,7 +17,6 @@ const initialState = {
   error: null,
 };
 
-// Async thunks
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials, { rejectWithValue }) => {
@@ -49,7 +47,7 @@ export const logout = createAsyncThunk(
     try {
       await authService.logout();
     } catch (error) {
-      console.warn('Logout API failed, clearing local state');
+      console.warn('Logout API failed');
     }
     return true;
   }
@@ -66,6 +64,11 @@ const authSlice = createSlice({
       state.accessToken = action.payload;
       localStorage.setItem('accessToken', action.payload);
     },
+    // ✅ NEW: Update user in Redux store
+    updateUser: (state, action) => {
+      state.user = { ...state.user, ...action.payload };
+      localStorage.setItem('user', JSON.stringify(state.user));
+    },
     clearAuth: (state) => {
       state.user = null;
       state.accessToken = null;
@@ -75,23 +78,24 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Login
       .addCase(login.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
       .addCase(login.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.user = action.payload.user;
+        state.user = {
+          ...action.payload.user,
+          avatar_url: action.payload.user?.avatar_url || null,  // ✅ Preserve
+        };
         state.accessToken = action.payload.accessToken;
-        localStorage.setItem('user', JSON.stringify(action.payload.user));
+        localStorage.setItem('user', JSON.stringify(state.user));
         localStorage.setItem('accessToken', action.payload.accessToken);
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
-      // Register
       .addCase(register.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -103,7 +107,6 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      // Logout
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.accessToken = null;
@@ -113,5 +116,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, setAccessToken, clearAuth } = authSlice.actions;
+// ✅ Export updateUser
+export const { clearError, setAccessToken, updateUser, clearAuth } = authSlice.actions;
 export default authSlice.reducer;

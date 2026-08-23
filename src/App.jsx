@@ -5,6 +5,7 @@ import OwnerLayout from './layouts/OwnerLayout';
 import AdminLayout from './layouts/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// ============ PUBLIC PAGES ============
 import Home from './pages/public/Home';
 import Vehicles from './pages/public/Vehicles';
 import VehicleDetail from './pages/public/VehicleDetail';
@@ -12,27 +13,47 @@ import Login from './pages/public/Login';
 import Register from './pages/public/Register';
 import Unauthorized from './pages/Unauthorized';
 
+// ============ BOOKING FLOW ============
 import BookingConfirm from './pages/booking/BookingConfirm';
 import BookingPayment from './pages/booking/BookingPayment';
 import BookingSuccess from './pages/booking/BookingSuccess';
 
+// ============ CUSTOMER PAGES ============
 import CustomerDashboard from './pages/customer/Dashboard';
 import CustomerBookings from './pages/customer/Bookings';
 import BookingDetails from './pages/customer/BookingDetails';
-import CustomerKYC from './pages/customer/KYC';  // ✅ Import
+import CustomerKYC from './pages/customer/KYC';
+import CustomerBranches from './pages/customer/Branches';
+import CustomerCalendar from './pages/customer/Calendar';
+import CustomerHelp from './pages/customer/Help';
+import CustomerWallet from './pages/customer/Wallet';
+import CustomerPayment from './pages/customer/Payment';
+import CustomerPayments from './pages/customer/Payment';
+import PaymentSuccess from './pages/customer/PaymentSuccess';
+import PaymentFailed from './pages/customer/PaymentFailed';
+import CustomerProfile from './pages/customer/Profile';
 
+
+// ============ OWNER PAGES ============
 import OwnerDashboard from './pages/owner/Dashboard';
 import OwnerVehicles from './pages/owner/Vehicles';
+import OwnerVehicleDetails from './pages/owner/OwnerVehicleDetails';
 import OwnerEarnings from './pages/owner/Earnings';
+import OwnerPayouts from './pages/owner/Payouts';
 import AddVehicle from './pages/owner/AddVehicle';
 import EditVehicle from './pages/owner/EditVehicle';
 import OwnerDocuments from './pages/owner/Documents';
+import OwnerVehicleDocuments from './pages/owner/VehicleDocuments';
+import OwnerBookings from './pages/owner/Bookings';
+import OwnerCalendar from './pages/owner/Calendar';
+import OwnerNotifications from './pages/owner/Notifications';
+import OwnerSettings from './pages/owner/Settings';
 
+// ============ ADMIN PAGES ============
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminVehicles from './pages/admin/Vehicles';
 import VehicleReview from './pages/admin/VehicleReview';
 import AdminKYC from './pages/admin/KYC';
-
 import AdminBookings from './pages/admin/Bookings';
 import AdminPayments from './pages/admin/Payments';
 import AdminUsers from './pages/admin/Users';
@@ -43,30 +64,42 @@ import BranchDetails from './pages/admin/BranchDetails';
 import VehicleDocuments from './pages/admin/VehicleDocuments';
 import AdminWallets from './pages/admin/Wallets';
 import AdminCommissions from './pages/admin/Commissions';
+import AdminSettings from './pages/admin/AdminSettings';
+// Imports
+import BecomeOwner from './pages/public/BecomeOwner';
+import HowItWorks from './pages/public/HowItWorks';
+import About from './pages/public/About';
 
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Public */}
         <Route element={<MainLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/vehicles" element={<Vehicles />} />
           <Route path="/vehicles/:id" element={<VehicleDetail />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route path="/become-owner" element={<BecomeOwner />} />
+          <Route path="/how-it-works" element={<HowItWorks />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/branches" element={<CustomerBranches />} />
         </Route>
 
-        {/* Auth */}
+        {/* ============ AUTH ROUTES ============ */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Booking */}
+        {/* ============ BOOKING FLOW ============ */}
         <Route path="/booking/confirm" element={<BookingConfirm />} />
         <Route path="/booking/payment" element={<BookingPayment />} />
         <Route path="/booking/success" element={<BookingSuccess />} />
 
-        {/* Customer */}
+        {/* ============ PAYMENT CALLBACKS ============ */}
+        <Route path="/payment/success" element={<PaymentSuccess />} />
+        <Route path="/payment/fail" element={<PaymentFailed />} />
+
+        {/* ============ CUSTOMER ROUTES ============ */}
         <Route path="/dashboard" element={
           <ProtectedRoute allowedRoles={['customer']}>
             <CustomerLayout><CustomerDashboard /></CustomerLayout>
@@ -82,14 +115,51 @@ function App() {
             <CustomerLayout><BookingDetails /></CustomerLayout>
           </ProtectedRoute>
         } />
-        {/* ✅ KYC Route */}
         <Route path="/kyc" element={
           <ProtectedRoute allowedRoles={['customer']}>
             <CustomerLayout><CustomerKYC /></CustomerLayout>
           </ProtectedRoute>
         } />
+        <Route path="/branches" element={
+          <ProtectedRoute allowedRoles={['customer']}>
+            <CustomerLayout><CustomerBranches /></CustomerLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/calendar" element={
+          <ProtectedRoute allowedRoles={['customer']}>
+            <CustomerLayout><CustomerCalendar /></CustomerLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/wallet" element={
+          <ProtectedRoute allowedRoles={['customer']}>
+            <CustomerLayout><CustomerWallet /></CustomerLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/payment/:bookingId" element={
+          <ProtectedRoute allowedRoles={['customer']}>
+            <CustomerLayout><CustomerPayment /></CustomerLayout>
+          </ProtectedRoute>
+        } />
+        // Route
+        <Route path="/payments" element={
+          <ProtectedRoute allowedRoles={['customer']}>
+            <CustomerLayout><CustomerPayments /></CustomerLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/help" element={
+          <ProtectedRoute allowedRoles={['customer']}>
+            <CustomerLayout><CustomerHelp /></CustomerLayout>
+          </ProtectedRoute>
+        } />
+        // Route
+        <Route path="/profile" element={
+          <ProtectedRoute allowedRoles={['customer']}>
+            <CustomerLayout><CustomerProfile /></CustomerLayout>
+          </ProtectedRoute>
+        } />
 
-        {/* Owner */}
+
+        {/* ============ OWNER ROUTES ============ */}
         <Route path="/owner" element={
           <ProtectedRoute allowedRoles={['owner']}>
             <OwnerLayout><OwnerDashboard /></OwnerLayout>
@@ -105,6 +175,11 @@ function App() {
             <OwnerLayout><AddVehicle /></OwnerLayout>
           </ProtectedRoute>
         } />
+        <Route path="/owner/vehicles/:id" element={
+          <ProtectedRoute allowedRoles={['owner']}>
+            <OwnerLayout><OwnerVehicleDetails /></OwnerLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/owner/vehicles/:id/edit" element={
           <ProtectedRoute allowedRoles={['owner']}>
             <OwnerLayout><EditVehicle /></OwnerLayout>
@@ -115,13 +190,43 @@ function App() {
             <OwnerLayout><OwnerEarnings /></OwnerLayout>
           </ProtectedRoute>
         } />
+        <Route path="/owner/payouts" element={
+          <ProtectedRoute allowedRoles={['owner']}>
+            <OwnerLayout><OwnerPayouts /></OwnerLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/owner/documents" element={
           <ProtectedRoute allowedRoles={['owner']}>
             <OwnerLayout><OwnerDocuments /></OwnerLayout>
           </ProtectedRoute>
         } />
+        <Route path="/owner/vehicle-documents" element={
+          <ProtectedRoute allowedRoles={['owner']}>
+            <OwnerLayout><OwnerVehicleDocuments /></OwnerLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/owner/bookings" element={
+          <ProtectedRoute allowedRoles={['owner']}>
+            <OwnerLayout><OwnerBookings /></OwnerLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/owner/calendar" element={
+          <ProtectedRoute allowedRoles={['owner']}>
+            <OwnerLayout><OwnerCalendar /></OwnerLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/owner/notifications" element={
+          <ProtectedRoute allowedRoles={['owner']}>
+            <OwnerLayout><OwnerNotifications /></OwnerLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/owner/settings" element={
+          <ProtectedRoute allowedRoles={['owner']}>
+            <OwnerLayout><OwnerSettings /></OwnerLayout>
+          </ProtectedRoute>
+        } />
 
-        {/* Admin */}
+        {/* ============ ADMIN ROUTES ============ */}
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['admin', 'staff']}>
             <AdminLayout><AdminDashboard /></AdminLayout>
@@ -137,12 +242,16 @@ function App() {
             <AdminLayout><VehicleReview /></AdminLayout>
           </ProtectedRoute>
         } />
+        <Route path="/admin/vehicle-documents" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><VehicleDocuments /></AdminLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/admin/kyc" element={
           <ProtectedRoute allowedRoles={['admin', 'staff']}>
             <AdminLayout><AdminKYC /></AdminLayout>
           </ProtectedRoute>
         } />
-        // Routes
         <Route path="/admin/bookings" element={
           <ProtectedRoute allowedRoles={['admin', 'staff']}>
             <AdminLayout><AdminBookings /></AdminLayout>
@@ -153,43 +262,6 @@ function App() {
             <AdminLayout><AdminPayments /></AdminLayout>
           </ProtectedRoute>
         } />
-        <Route path="/admin/users" element={
-          <ProtectedRoute allowedRoles={['admin', 'staff']}>
-            <AdminLayout><AdminUsers /></AdminLayout>
-          </ProtectedRoute>
-        } />
-        <Route path="/admin/reports" element={
-          <ProtectedRoute allowedRoles={['admin', 'staff']}>
-            <AdminLayout><AdminReports /></AdminLayout>
-          </ProtectedRoute>
-        } />
-        // Route
-        <Route path="/admin/audit-logs" element={
-          <ProtectedRoute allowedRoles={['admin', 'staff']}>
-            <AdminLayout><AdminAuditLogs /></AdminLayout>
-          </ProtectedRoute>
-        } />
-        // Route
-        <Route path="/admin/branches" element={
-          <ProtectedRoute allowedRoles={['admin', 'staff']}>
-            <AdminLayout><AdminBranches /></AdminLayout>
-          </ProtectedRoute>
-        } />
-
-
-        // Route
-        <Route path="/admin/branches/:id" element={
-          <ProtectedRoute allowedRoles={['admin', 'staff']}>
-            <AdminLayout><BranchDetails /></AdminLayout>
-          </ProtectedRoute>
-        } />
-        
-        // Routes
-        <Route path="/admin/vehicle-documents" element={
-          <ProtectedRoute allowedRoles={['admin', 'staff']}>
-            <AdminLayout><VehicleDocuments /></AdminLayout>
-          </ProtectedRoute>
-        } />
         <Route path="/admin/wallets" element={
           <ProtectedRoute allowedRoles={['admin', 'staff']}>
             <AdminLayout><AdminWallets /></AdminLayout>
@@ -198,6 +270,39 @@ function App() {
         <Route path="/admin/commissions" element={
           <ProtectedRoute allowedRoles={['admin', 'staff']}>
             <AdminLayout><AdminCommissions /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/users" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminUsers /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/branches" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminBranches /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/branches/:id" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><BranchDetails /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/reports" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminReports /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/audit-logs" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminAuditLogs /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
+
+        // Route
+        <Route path="/admin/settings" element={
+          <ProtectedRoute allowedRoles={['admin', 'staff']}>
+            <AdminLayout><AdminSettings /></AdminLayout>
           </ProtectedRoute>
         } />
       </Routes>

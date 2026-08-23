@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Car, 
   Calendar, 
@@ -10,15 +10,19 @@ import {
   User,
   Shield,
   AlertCircle,
+  MapPin,
+  CheckCircle,
+  Activity,
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
-import StatCard from '../../components/dashboard/StatCard';
-import Button from '../../components/ui/Button';
-import Badge from '../../components/ui/Badge';
+import KpiCard from '../../components/admin/KpiCard';
 import Card from '../../components/ui/Card';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
 import Spinner from '../../components/ui/Spinner';
 import ErrorState from '../../components/ui/ErrorState';
 import EmptyState from '../../components/ui/EmptyState';
+import StatusBadge from '../../components/admin/StatusBadge';
 import bookingService from '../../services/bookingService';
 import walletService from '../../services/walletService';
 import api from '../../services/api';
@@ -26,45 +30,42 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const CustomerDashboard = () => {
   const { user, accessToken } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
   
   const [bookings, setBookings] = useState([]);
   const [balance, setBalance] = useState(null);
-  const [kycApproved, setKycApproved] = useState(false);
+  const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
   const fetchDashboardData = useCallback(async () => {
     if (!accessToken) return;
-    
     setLoading(true);
     setError(null);
     
     try {
-      // Fetch bookings
-      const bookingsResponse = await bookingService.getMyBookings({ page: 1, limit: 20 });
-      setBookings(bookingsResponse.data || []);
+      const bookingsRes = await bookingService.getMyBookings({ page: 1, limit: 50 });
+      setBookings(bookingsRes.data || []);
       
-      // Fetch wallet
       try {
-        const balanceResponse = await walletService.getBalance();
-        setBalance(balanceResponse.data || balanceResponse);
-      } catch (walletError) {
-        console.warn('Wallet not available:', walletError.message);
+        const balanceRes = await walletService.getBalance();
+        const balanceData = balanceRes.data || balanceRes;
+        setBalance({
+          ...balanceData,
+          currentBalance: Math.max(0, Number(balanceData?.currentBalance || balanceData?.balance || 0)),
+        });
+      } catch (e) {
         setBalance({ currentBalance: 0 });
       }
       
-      // Check KYC
       try {
-        const kycResponse = await api.get('/documents/my');
-        const docs = kycResponse.data.data || [];
-        const approvedCount = docs.filter((d) => d.status === 'approved').length;
-        setKycApproved(approvedCount >= 2);
-      } catch (kycError) {
-        setKycApproved(false);
+        const kycRes = await api.get('/documents/my');
+        setDocuments(kycRes.data.data || []);
+      } catch (e) {
+        setDocuments([]);
       }
     } catch (error) {
-      console.error('Failed to fetch dashboard:', error);
-      setError(error.response?.data?.message || 'Failed to load dashboard');
+      setError('Failed to load dashboard');
     } finally {
       setLoading(false);
     }
@@ -75,192 +76,191 @@ const CustomerDashboard = () => {
   }, [fetchDashboardData]);
   
   if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <div className="flex justify-center py-20"><Spinner size="lg" /></div>;
   }
   
   if (error) {
-    return (
-      <ErrorState
-        title="Failed to Load Dashboard"
-        message={error}
-        onRetry={fetchDashboardData}
-      />
-    );
+    return <ErrorState title="Failed" message={error} onRetry={fetchDashboardData} />;
   }
   
-  const totalBookings = bookings.length;
-  const upcomingBookings = bookings.filter((b) => b.status === 'confirmed' || b.status === 'pending_payment');
-  const completedBookings = bookings.filter((b) => b.status === 'completed');
-  const walletBalance = balance?.currentBalance || balance?.balance || 0;
+  // ============ BUSINESS CALCULATIONS ============
   
-  const stats = [
-    { icon: Calendar, label: 'Total Bookings', value: totalBookings, color: 'blue' },
-    { icon: Clock, label: 'Upcoming Trips', value: upcomingBookings.length, color: 'green' },
-    { icon: Car, label: 'Completed Trips', value: completedBookings.length, color: 'purple' },
-    { icon: Wallet, label: 'Wallet Balance', value: formatCurrency(walletBalance), color: 'yellow' },
-  ];
+  const now = new Date();
   
-  const getStatusVariant = (status) => {
-    const variants = {
-      'pending_payment': 'warning',
-      'confirmed': 'success',
-      'ongoing': 'primary',
-      'completed': 'default',
-      'cancelled': 'danger',
-    };
-    return variants[status] || 'default';
-  };
+  // Upcoming = confirmed/pending AND pickup_date > now
+  const upcomingTrips = bookings.filter((b) => 
+    ['confirmed', 'pending_payment'].includes(b.status) && 
+    new Date(b.pickup_date) > now
+  );
+  
+  // Active = ongoing OR (confirmed AND pickup_date <= now <= return_date)
+  const activeTrips = bookings.filter((b) => {
+    if (b.status === 'ongoing') return true;
+    const pickup = new Date(b.pickup_date);
+    const returnD = new Date(b.return_date);
+    return b.status === 'confirmed' && pickup <= now && returnD >= now;
+  });
+  
+  const completedTrips = bookings.filter((b) => b.status === 'completed');
+  const cancelledBookings = bookings.filter((b) => b.status === 'cancelled');
+  
+  // Next trip = upcoming sorted by pickup date
+  const nextTrip = [...upcomingTrips].sort((a, b) => new Date(a.pickup_date) - new Date(b.pickup_date))[0];
+  
+  // KYC
+  const approvedDocs = documents.filter((d) => d.status === 'approved');
+  const kycComplete = approvedDocs.length >= 2;
+  
+  const walletBalance = balance?.currentBalance || 0;
   
   return (
-    <div>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-slate-900">
+            Welcome back, {user?.name?.split(' ')[0]}!
+          </h1>
+          <p className="text-xs text-slate-500">Here's what's happening with your trips.</p>
+        </div>
+        <Link to="/vehicles">
+          <Button size="sm">
+            <Search className="w-4 h-4" />
+            Browse Cars
+          </Button>
+        </Link>
+      </div>
+      
       {/* KYC Alert */}
-      {!kycApproved && (
-        <Link 
-          to="/kyc" 
-          className="block mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center gap-3 hover:bg-yellow-100 transition-colors"
-        >
-          <AlertCircle className="w-6 h-6 text-yellow-600 shrink-0" />
+      {!kycComplete && (
+        <Link to="/kyc" className="block bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center gap-3 hover:bg-yellow-100">
+          <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0" />
           <div className="flex-1">
-            <p className="font-medium text-yellow-800">Complete KYC Verification</p>
-            <p className="text-sm text-yellow-600">
-              Upload your NID and Driving License to book vehicles.
+            <p className="text-sm font-medium text-yellow-800">Complete Your KYC</p>
+            <p className="text-xs text-yellow-600">
+              {approvedDocs.length}/2 documents verified. Upload NID + License to book vehicles.
             </p>
           </div>
-          <Shield className="w-5 h-5 text-yellow-600 shrink-0" />
+          <ChevronRight className="w-4 h-4 text-yellow-600" />
         </Link>
       )}
       
-      {/* Welcome */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">
-          Welcome back, {user?.name?.split(' ')[0]}! 👋
-        </h1>
-        <p className="text-slate-500">Here's what's happening with your bookings.</p>
-      </div>
-      
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat) => (
-          <StatCard key={stat.label} {...stat} />
-        ))}
-      </div>
-      
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <Link to="/vehicles" className="bg-blue-600 text-white rounded-xl p-4 hover:bg-blue-700 transition-colors">
-          <Search className="w-6 h-6 mb-2" />
-          <p className="font-medium">Search Cars</p>
-          <p className="text-xs text-blue-200">Find your next ride</p>
-        </Link>
-        
-        <Link to="/bookings" className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all">
-          <Calendar className="w-6 h-6 text-blue-600 mb-2" />
-          <p className="font-medium text-slate-900">My Bookings</p>
-          <p className="text-xs text-slate-500">{totalBookings} total</p>
-        </Link>
-        
-        <Link to="/wallet" className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all">
-          <Wallet className="w-6 h-6 text-green-600 mb-2" />
-          <p className="font-medium text-slate-900">Wallet</p>
-          <p className="text-xs text-slate-500">{formatCurrency(walletBalance)}</p>
-        </Link>
-        
-        <Link to="/profile" className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all">
-          <User className="w-6 h-6 text-purple-600 mb-2" />
-          <p className="font-medium text-slate-900">Profile</p>
-          <p className="text-xs text-slate-500">Update info</p>
-        </Link>
-      </div>
-      
-      {/* Upcoming Bookings */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">Upcoming Bookings</h2>
-          <Link to="/bookings" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
-            View All <ChevronRight className="w-4 h-4" />
+      {/* ============ NEXT TRIP CARD ============ */}
+      {nextTrip ? (
+        <Card className="p-4 bg-gradient-to-r from-blue-600 to-blue-800 text-white border-blue-700">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs text-blue-200">Your Next Trip</p>
+              <p className="text-lg font-bold mt-1">
+                {nextTrip.brand === nextTrip.model ? nextTrip.brand : `${nextTrip.brand} ${nextTrip.model}`}
+              </p>
+              <p className="text-xs text-blue-200 mt-0.5">
+                {nextTrip.year} • {nextTrip.vehicle_type}
+              </p>
+            </div>
+            <Badge variant="success" size="sm">Confirmed</Badge>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-3 text-sm text-blue-100">
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5" />
+              {formatDate(nextTrip.pickup_date)} → {formatDate(nextTrip.return_date)}
+            </span>
+            {nextTrip.branch_name && (
+              <span className="flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5" />
+                {nextTrip.branch_name}
+              </span>
+            )}
+          </div>
+          
+          <div className="flex items-center justify-between mt-3">
+            <div>
+              <p className="text-[10px] text-blue-200">Total Amount</p>
+              <span className="font-bold text-xl">{formatCurrency(nextTrip.total_amount)}</span>
+            </div>
+            <Link to={`/bookings/${nextTrip.id}`} className="bg-white text-blue-700 px-4 py-2 rounded-lg text-xs font-semibold">
+              View Booking →
+            </Link>
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-6 text-center">
+          <Car className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+          <p className="text-sm font-medium text-slate-700">No upcoming trips</p>
+          <p className="text-xs text-slate-400 mb-3">Browse available vehicles and book your next adventure.</p>
+          <Link to="/vehicles">
+            <Button size="sm">
+              <Search className="w-4 h-4" />
+              Browse Cars
+            </Button>
           </Link>
+        </Card>
+      )}
+      
+      {/* ============ KPI CARDS ============ */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard icon={Calendar} label="Total Bookings" value={bookings.length} color="blue" onClick={() => navigate('/bookings')} />
+        <KpiCard icon={Clock} label="Upcoming Trips" value={upcomingTrips.length} color="green" onClick={() => navigate('/bookings')} />
+        <KpiCard icon={Activity} label="Active Trip" value={activeTrips.length} color="purple" onClick={() => navigate('/bookings')} />
+        <KpiCard icon={CheckCircle} label="Completed" value={completedTrips.length} color="yellow" onClick={() => navigate('/bookings')} />
+      </div>
+      
+      {/* ============ FINANCIAL CARD ============ */}
+      <Card className="p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+            <Wallet className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Wallet Balance</p>
+            <p className="text-lg font-bold text-slate-900">{formatCurrency(walletBalance)}</p>
+          </div>
+        </div>
+        <Link to="/wallet" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+          View Wallet <ChevronRight className="w-3 h-3" />
+        </Link>
+      </Card>
+      
+      {/* ============ RECENT BOOKINGS ============ */}
+      <Card className="p-0 overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Recent Bookings</h3>
+          <Link to="/bookings" className="text-xs text-blue-600 hover:underline">View All</Link>
         </div>
         
-        {upcomingBookings.length > 0 ? (
-          <div className="space-y-4">
-            {upcomingBookings.slice(0, 3).map((booking) => (
-              <Card key={booking.id} hoverable className="flex items-center gap-4">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-slate-900">
-                    {booking.brand === booking.model
-                      ? `${booking.brand} ${booking.year}`
-                      : `${booking.brand} ${booking.model} ${booking.year}`}
-                  </h3>
-                  <p className="text-sm text-slate-500">
-                    {formatDate(booking.pickup_date)} → {formatDate(booking.return_date)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold">{formatCurrency(booking.total_amount)}</p>
-                  <Badge variant={getStatusVariant(booking.status)} size="sm">
-                    {booking.status.replace(/_/g, ' ')}
-                  </Badge>
-                </div>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <p className="text-slate-500 text-center py-8">No upcoming bookings</p>
-          </Card>
-        )}
-      </div>
-      
-      {/* Recent Bookings */}
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Bookings</h2>
-        
         {bookings.length > 0 ? (
-          <Card className="divide-y divide-slate-100 p-0">
+          <div className="divide-y divide-slate-100">
             {bookings.slice(0, 5).map((booking) => (
               <Link
                 key={booking.id}
                 to={`/bookings/${booking.id}`}
-                className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors"
+                className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors"
               >
-                <div className="flex-1">
-                  <p className="font-medium text-slate-900">
-                    {booking.brand === booking.model
-                      ? `${booking.brand} ${booking.year}`
-                      : `${booking.brand} ${booking.model} ${booking.year}`}
+                <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
+                  <Car className="w-5 h-5 text-slate-500" />
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {booking.brand === booking.model ? booking.brand : `${booking.brand} ${booking.model}`}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-[10px] text-slate-400">
                     {formatDate(booking.pickup_date)} → {formatDate(booking.return_date)}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold">{formatCurrency(booking.total_amount)}</p>
-                  <Badge variant={getStatusVariant(booking.status)} size="sm">
-                    {booking.status.replace(/_/g, ' ')}
-                  </Badge>
+                
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-medium">{formatCurrency(booking.total_amount)}</p>
+                  <StatusBadge status={booking.status} size="xs" />
                 </div>
               </Link>
             ))}
-          </Card>
+          </div>
         ) : (
-          <EmptyState
-            title="No Bookings Yet"
-            description="Start by browsing available vehicles."
-            action={
-              <Link to="/vehicles">
-                <Button>
-                  <Search className="w-4 h-4" />
-                  Browse Cars
-                </Button>
-              </Link>
-            }
-          />
+          <p className="text-sm text-slate-400 text-center py-6">No bookings yet</p>
         )}
-      </div>
+      </Card>
     </div>
   );
 };

@@ -3,14 +3,18 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Car, 
-  Calendar, 
+  Calendar,
+  Wallet,
   User,
+  Shield,
+  MapPin,
+  CreditCard,
+  HelpCircle,
   LogOut,
   Menu,
   Bell,
   ChevronDown,
-  Settings,
-  HelpCircle,
+  Clock,
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../features/auth/authSlice';
@@ -19,15 +23,14 @@ import Badge from '../components/ui/Badge';
 const CustomerLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  
+  const [kycComplete, setKycComplete] = useState(false);
   const userMenuRef = useRef(null);
+  
   const dispatch = useDispatch();
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
   
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
@@ -38,11 +41,47 @@ const CustomerLayout = ({ children }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Car, label: 'Browse Cars', path: '/vehicles' },
-    { icon: Calendar, label: 'My Bookings', path: '/bookings' },
-    { icon: User, label: 'Profile', path: '/profile' },
+  const navGroups = [
+    {
+      label: 'OVERVIEW',
+      items: [
+        { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+      ],
+    },
+    {
+      label: 'EXPLORE',
+      items: [
+        { icon: Car, label: 'Browse Cars', path: '/vehicles' },
+        { icon: MapPin, label: 'Branches', path: '/branches' },
+      ],
+    },
+    {
+      label: 'TRIPS',
+      items: [
+        { icon: Calendar, label: 'My Bookings', path: '/bookings' },
+        { icon: Clock, label: 'Calendar', path: '/calendar' },
+      ],
+    },
+    {
+      label: 'FINANCE',
+      items: [
+        { icon: Wallet, label: 'Wallet', path: '/wallet' },
+        { icon: CreditCard, label: 'Payments', path: '/payments' },
+      ],
+    },
+    {
+      label: 'ACCOUNT',
+      items: [
+        { icon: User, label: 'Profile', path: '/profile' },
+        { icon: Shield, label: 'KYC & Verification', path: '/kyc' },
+      ],
+    },
+    {
+      label: 'SUPPORT',
+      items: [
+        { icon: HelpCircle, label: 'Help & Support', path: '/help' },
+      ],
+    },
   ];
   
   const isActive = (path) => 
@@ -53,48 +92,97 @@ const CustomerLayout = ({ children }) => {
     navigate('/login');
   };
   
+  // ✅ Avatar component
+  const UserAvatar = ({ size = 'sm' }) => {
+    const sizeClasses = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
+    
+    if (user?.avatar_url) {
+      return (
+        <img 
+          src={user.avatar_url} 
+          alt={user?.name || 'User'} 
+          className={`${sizeClasses} rounded-full object-cover shrink-0`}
+          crossOrigin="anonymous"
+          onError={(e) => {
+            e.target.style.display = 'none';
+          }}
+        />
+      );
+    }
+    
+    return (
+      <div className={`${sizeClasses} bg-blue-100 rounded-full flex items-center justify-center shrink-0`}>
+        <span className="text-xs font-semibold text-blue-600">
+          {user?.name?.[0]?.toUpperCase() || 'C'}
+        </span>
+      </div>
+    );
+  };
+  
   const SidebarContent = () => (
-    <aside className="w-64 bg-white border-r border-slate-200 h-full flex flex-col">
+    <aside className="w-60 bg-white border-r border-slate-200 h-full flex flex-col">
       {/* Logo */}
-      <div className="p-4 border-b border-slate-200">
+      <div className="p-3 border-b border-slate-200">
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Car className="w-5 h-5 text-white" />
+          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
+            <Car className="w-4 h-4 text-white" />
           </div>
-          <span className="text-lg font-bold text-slate-900">
+          <span className="text-sm font-bold text-slate-900">
             UDrive<span className="text-blue-600">BD</span>
           </span>
         </Link>
       </div>
       
-      {/* Nav */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            onClick={() => setSidebarOpen(false)}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-              isActive(item.path)
-                ? 'bg-blue-50 text-blue-600'
-                : 'text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <item.icon className="w-5 h-5" />
-            {item.label}
+      {/* KYC Banner */}
+      {!kycComplete && (
+        <div className="p-2 border-b border-yellow-200 bg-yellow-50">
+          <Link to="/kyc" className="flex items-center gap-1.5 text-[10px] text-yellow-700">
+            <Shield className="w-3 h-3" />
+            KYC pending — verify identity
           </Link>
+        </div>
+      )}
+      
+      {/* Navigation */}
+      <nav className="flex-1 p-2 overflow-y-auto">
+        {navGroups.map((group) => (
+          <div key={group.label} className="mb-2">
+            <p className="px-3 py-1 text-[9px] font-semibold text-slate-400 tracking-wider uppercase">
+              {group.label}
+            </p>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                      isActive(item.path)
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         ))}
       </nav>
       
-      {/* Logout */}
-      <div className="p-4 border-t border-slate-200">
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 text-sm text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg w-full"
-        >
-          <LogOut className="w-4 h-4" />
-          Logout
-        </button>
+      {/* User Info */}
+      <div className="p-2 border-t border-slate-200">
+        <Link to="/profile" className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50">
+          <UserAvatar size="md" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium truncate">{user?.name}</p>
+            <p className="text-[10px] text-slate-400">Customer</p>
+          </div>
+        </Link>
       </div>
     </aside>
   );
@@ -102,7 +190,7 @@ const CustomerLayout = ({ children }) => {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block fixed inset-y-0 left-0 z-30">
+      <div className="hidden lg:block fixed inset-y-0 left-0 z-30 w-60">
         <SidebarContent />
       </div>
       
@@ -117,111 +205,68 @@ const CustomerLayout = ({ children }) => {
       )}
       
       {/* Main Content */}
-      <div className="lg:ml-64">
-        {/* ============ TOP NAVBAR (Clean - No Menu Links) ============ */}
-        <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-20">
-          {/* Left: Mobile menu + Page Title */}
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setSidebarOpen(true)} 
-              className="lg:hidden p-2 hover:bg-slate-100 rounded-lg"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <p className="font-semibold text-slate-900">
-              {navItems.find((item) => isActive(item.path))?.label || 'Dashboard'}
-            </p>
-          </div>
-          
-          {/* Right: Notifications + Profile */}
-          <div className="flex items-center gap-2">
-            {/* Notifications */}
-            <div className="relative">
-              <button 
-                onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="p-2 hover:bg-slate-100 rounded-lg relative"
-              >
-                <Bell className="w-5 h-5 text-slate-600" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+      <div className="lg:ml-60">
+        {/* Topbar */}
+        <header className="bg-white border-b border-slate-200 px-4 py-2.5 sticky top-0 z-20">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-slate-100 rounded-lg shrink-0">
+                <Menu className="w-4 h-4" />
               </button>
-              
-              {notificationsOpen && (
-                <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-lg py-2 z-50">
-                  <p className="px-4 py-2 text-sm font-semibold text-slate-900">Notifications</p>
-                  <hr className="my-1" />
-                  <p className="px-4 py-4 text-sm text-slate-500 text-center">No new notifications</p>
-                </div>
-              )}
+              <p className="text-sm font-semibold text-slate-900 truncate">
+                {navGroups.flatMap((g) => g.items).find((item) => isActive(item.path))?.label || 'Dashboard'}
+              </p>
             </div>
             
-            {/* Profile Dropdown */}
-            <div className="relative" ref={userMenuRef}>
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 hover:bg-slate-100 rounded-lg px-2 py-1.5 transition-colors"
-              >
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-semibold text-blue-600">
-                    {user?.name?.[0]?.toUpperCase() || 'C'}
-                  </span>
-                </div>
-                <span className="hidden sm:block text-sm font-medium text-slate-700">
-                  {user?.name?.split(' ')[0]}
-                </span>
-                <ChevronDown className="w-4 h-4 text-slate-500" />
+            <div className="flex items-center gap-1 shrink-0">
+              <button className="p-2 hover:bg-slate-100 rounded-lg relative">
+                <Bell className="w-4 h-4 text-slate-600" />
               </button>
               
-              {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-2 z-50">
-                  {/* User Info */}
-                  <div className="px-4 py-3 border-b border-slate-100">
-                    <p className="text-sm font-semibold text-slate-900">{user?.name}</p>
-                    <p className="text-xs text-slate-500 truncate">{user?.email}</p>
-                    <Badge variant="primary" size="sm" className="mt-2">
-                      Customer
-                    </Badge>
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-1.5 hover:bg-slate-100 rounded-lg px-2 py-1.5"
+                >
+                  <UserAvatar size="sm" />
+                  <ChevronDown className="w-3 h-3 text-slate-500" />
+                </button>
+                
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-1 w-60 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
+                    {/* User Info with Avatar */}
+                    <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-2.5">
+                      <UserAvatar size="md" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate">{user?.name}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
+                        <Badge variant="primary" size="xs" className="mt-1">Customer</Badge>
+                      </div>
+                    </div>
+                    
+                    <Link to="/profile" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>
+                      <User className="w-3.5 h-3.5" /> Profile Settings
+                    </Link>
+                    <Link to="/kyc" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>
+                      <Shield className="w-3.5 h-3.5" /> KYC Verification
+                    </Link>
+                    <Link to="/help" className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50" onClick={() => setUserMenuOpen(false)}>
+                      <HelpCircle className="w-3.5 h-3.5" /> Help Center
+                    </Link>
+                    
+                    <hr className="my-1" />
+                    
+                    <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 w-full text-left">
+                      <LogOut className="w-3.5 h-3.5" /> Logout
+                    </button>
                   </div>
-                  
-                  {/* Account Actions Only */}
-                  <Link
-                    to="/profile"
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                    onClick={() => setUserMenuOpen(false)}
-                  >
-                    <User className="w-4 h-4" /> Profile Settings
-                  </Link>
-                  
-                  <Link
-                    to="/settings"
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                    onClick={() => setUserMenuOpen(false)}
-                  >
-                    <Settings className="w-4 h-4" /> Account Settings
-                  </Link>
-                  
-                  <Link
-                    to="/help"
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                    onClick={() => setUserMenuOpen(false)}
-                  >
-                    <HelpCircle className="w-4 h-4" /> Help Center
-                  </Link>
-                  
-                  <hr className="my-1" />
-                  
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 w-full text-left"
-                  >
-                    <LogOut className="w-4 h-4" /> Logout
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </header>
         
-        <main className="p-4 sm:p-6 lg:p-8">
+        <main className="p-3 sm:p-4 lg:p-5">
           {children}
         </main>
       </div>

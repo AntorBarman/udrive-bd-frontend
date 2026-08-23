@@ -7,17 +7,12 @@ import {
   Shield,
   Lock,
   CreditCard,
-  Globe,
-  MessageCircle,
-  Share2,
-  Users,
 } from 'lucide-react';
-import { FaFacebook, FaTwitter, FaInstagram, FaLinkedin } from 'react-icons/fa';
+import { FaFacebookF, FaInstagram, FaWhatsapp, FaLinkedinIn } from 'react-icons/fa';
 
 const Footer = () => {
   return (
     <footer className="bg-slate-900 text-white">
-      {/* Main Footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Brand */}
@@ -26,51 +21,50 @@ const Footer = () => {
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Car className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold">
+              <span className="text-xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
                 UDrive<span className="text-blue-400">BD</span>
               </span>
             </Link>
             
             <p className="text-slate-400 text-sm mb-6 max-w-sm">
-              Bangladesh's trusted peer-to-peer self-drive car rental platform. 
-              Rent verified vehicles from trusted owners across the country.
+              Bangladesh's trusted peer-to-peer self-drive car rental platform.
             </p>
             
+            {/* ✅ Real Social Icons */}
             <div className="flex gap-3">
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors" aria-label="Facebook">
-                <Globe className="w-5 h-5" />
+              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors">
+                <FaFacebookF className="w-4 h-4" />
               </a>
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors" aria-label="Twitter">
-                <MessageCircle className="w-5 h-5" />
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-pink-600 transition-colors">
+                <FaInstagram className="w-4 h-4" />
               </a>
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors" aria-label="Instagram">
-                <Share2 className="w-5 h-5" />
+              <a href="https://wa.me/8801700000000" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-green-600 transition-colors">
+                <FaWhatsapp className="w-4 h-4" />
               </a>
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors" aria-label="LinkedIn">
-                <Users className="w-5 h-5" />
+              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-blue-700 transition-colors">
+                <FaLinkedinIn className="w-4 h-4" />
               </a>
             </div>
           </div>
           
           {/* Quick Links */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-4 uppercase">Quick Links</h3>
+            <h3 className="text-sm font-semibold mb-4 uppercase">Platform</h3>
             <ul className="space-y-2">
-              <li><Link to="/vehicles" className="text-slate-400 hover:text-white text-sm transition-colors">Browse Vehicles</Link></li>
+              <li><Link to="/vehicles" className="text-slate-400 hover:text-white text-sm transition-colors">Browse Cars</Link></li>
               <li><Link to="/how-it-works" className="text-slate-400 hover:text-white text-sm transition-colors">How It Works</Link></li>
-              <li><Link to="/become-owner" className="text-slate-400 hover:text-white text-sm transition-colors">Become an Owner</Link></li>
-              <li><Link to="/about" className="text-slate-400 hover:text-white text-sm transition-colors">About Us</Link></li>
-              <li><Link to="/help" className="text-slate-400 hover:text-white text-sm transition-colors">Help Center</Link></li>
+              <li><Link to="/branches" className="text-slate-400 hover:text-white text-sm transition-colors">Branches</Link></li>
+              <li><Link to="/become-owner" className="text-slate-400 hover:text-white text-sm transition-colors">Become Owner</Link></li>
             </ul>
           </div>
           
           {/* Support */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-4 uppercase">Support</h3>
+            <h3 className="text-sm font-semibold mb-4 uppercase">Support</h3>
             <ul className="space-y-3">
               <li>
-                <a href="tel:+8801700000000" className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors">
-                  <Phone className="w-4 h-4" /> +880 1700-000000
+                <a href="tel:+8801712345678" className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors">
+                  <Phone className="w-4 h-4" /> +880 1712-345678
                 </a>
               </li>
               <li>
@@ -84,9 +78,9 @@ const Footer = () => {
             </ul>
           </div>
           
-          {/* Trust & Security */}
+          {/* Trust */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-4 uppercase">Trust & Security</h3>
+            <h3 className="text-sm font-semibold mb-4 uppercase">Trust</h3>
             <ul className="space-y-3">
               <li className="flex items-center gap-2 text-slate-400 text-sm">
                 <Shield className="w-4 h-4 text-green-400" /> Verified Vehicles
@@ -102,18 +96,12 @@ const Footer = () => {
         </div>
       </div>
       
-      {/* Bottom Bar */}
       <div className="border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-2">
-            <p className="text-slate-500 text-sm">
-              © 2026 UDrive Bangladesh. All rights reserved.
-            </p>
-            <div className="flex gap-6">
-              <Link to="/privacy" className="text-slate-500 hover:text-white text-sm transition-colors">Privacy Policy</Link>
-              <Link to="/terms" className="text-slate-500 hover:text-white text-sm transition-colors">Terms of Service</Link>
-              <Link to="/refund" className="text-slate-500 hover:text-white text-sm transition-colors">Refund Policy</Link>
-            </div>
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between gap-2">
+          <p className="text-slate-500 text-sm">© 2026 UDrive Bangladesh. All rights reserved.</p>
+          <div className="flex gap-4">
+            <Link to="/privacy" className="text-slate-500 hover:text-white text-xs">Privacy</Link>
+            <Link to="/terms" className="text-slate-500 hover:text-white text-xs">Terms</Link>
           </div>
         </div>
       </div>
