@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  Upload, 
-  CheckCircle, 
-  Clock, 
+  Upload,
+  CheckCircle,
+  Clock,
   XCircle,
   Shield,
   User,
@@ -10,7 +10,7 @@ import {
   Camera,
   AlertCircle,
   Send,
-  Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import Button from '../../components/ui/Button';
@@ -24,56 +24,47 @@ import { formatDate } from '../../utils/formatters';
 const CustomerKYC = () => {
   const { accessToken } = useSelector((state) => state.auth);
   
-  // Existing documents from backend
-  const [existingDocuments, setExistingDocuments] = useState([]);
+  const [existingDocuments, setExistingDocuments] = useState({});
   const [loading, setLoading] = useState(true);
-  
-  // Local upload state (not yet submitted)
+  const [refreshing, setRefreshing] = useState(false);
   const [pendingUploads, setPendingUploads] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  
-  // Camera
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraForType, setCameraForType] = useState('');
   
-  useEffect(() => {
-    if (accessToken) fetchExistingDocuments();
-  }, [accessToken]);
-  
-  const fetchExistingDocuments = async () => {
-    setLoading(true);
+  const fetchDocuments = useCallback(async () => {
+    if (!accessToken) return;
+    
     try {
       const response = await api.get('/documents/my');
       const docs = response.data.data || [];
-      
-      // Map by type for easy lookup
       const docMap = {};
       docs.forEach((doc) => {
         docMap[doc.document_type] = doc;
       });
-      
       setExistingDocuments(docMap);
+      console.log('🔍 Documents loaded:', docMap);
     } catch (error) {
       console.error('Failed to fetch documents:', error);
       setExistingDocuments({});
     } finally {
       setLoading(false);
     }
+  }, [accessToken]);
+  
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+  
+  // ✅ Manual refresh
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDocuments();
+    setTimeout(() => setRefreshing(false), 500);
   };
   
-  const requiredDocuments = [
-    { type: 'nid_front', label: 'NID Front Side', icon: User, category: 'Identity', camera: false },
-    { type: 'nid_back', label: 'NID Back Side', icon: User, category: 'Identity', camera: false },
-    { type: 'driving_license_front', label: 'License Front', icon: Car, category: 'License', camera: false },
-    { type: 'driving_license_back', label: 'License Back', icon: Car, category: 'License', camera: false },
-    { type: 'face_photo', label: 'Live Face Photo', icon: Camera, category: 'Identity', camera: true },
-  ];
-  
   const handleFileSelect = (docType, file) => {
-    setPendingUploads((prev) => ({
-      ...prev,
-      [docType]: file,
-    }));
+    setPendingUploads((prev) => ({ ...prev, [docType]: file }));
   };
   
   const handleRemovePending = (docType) => {
@@ -85,10 +76,7 @@ const CustomerKYC = () => {
   };
   
   const handleCameraCapture = (file, previewUrl, docType) => {
-    setPendingUploads((prev) => ({
-      ...prev,
-      [docType]: file,
-    }));
+    setPendingUploads((prev) => ({ ...prev, [docType]: file }));
     setCameraOpen(false);
   };
   
@@ -96,23 +84,11 @@ const CustomerKYC = () => {
     const pendingTypes = Object.keys(pendingUploads);
     
     if (pendingTypes.length === 0) {
-      alert('Please upload documents first');
+      alert('No new documents to submit');
       return;
     }
     
-    // Check if all required documents are either uploaded or already approved
-    const missingRequired = requiredDocuments.filter((doc) => {
-      const existing = existingDocuments[doc.type];
-      const pending = pendingUploads[doc.type];
-      return !existing && !pending;
-    });
-    
-    if (missingRequired.length > 0) {
-      alert(`Please upload: ${missingRequired.map((d) => d.label).join(', ')}`);
-      return;
-    }
-    
-    if (!confirm('Submit all documents for review?')) return;
+    if (!confirm(`Submit ${pendingTypes.length} document(s) for review?`)) return;
     
     setSubmitting(true);
     
@@ -121,7 +97,6 @@ const CustomerKYC = () => {
       
       for (const docType of pendingTypes) {
         const file = pendingUploads[docType];
-        
         const formData = new FormData();
         formData.append('document_type', docType);
         formData.append('file', file);
@@ -131,151 +106,172 @@ const CustomerKYC = () => {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
           successCount++;
-        } catch (error) {
-          console.error(`Failed to upload ${docType}:`, error);
+        } catch (e) {
+          console.error(`Failed: ${docType}`, e);
         }
       }
       
-      alert(`${successCount} documents submitted for review!`);
+      alert(`${successCount} document(s) submitted!`);
       setPendingUploads({});
-      fetchExistingDocuments();
-    } catch (error) {
-      alert('Submission failed. Please try again.');
+      fetchDocuments();
     } finally {
       setSubmitting(false);
     }
   };
   
-  const getStatusConfig = (status) => {
-    const configs = {
-      approved: { variant: 'success', icon: CheckCircle, label: 'Verified' },
-      pending: { variant: 'warning', icon: Clock, label: 'Under Review' },
-      rejected: { variant: 'danger', icon: XCircle, label: 'Rejected' },
-    };
-    return configs[status] || configs.pending;
-  };
+  const requiredDocuments = [
+    { type: 'nid_front', label: 'NID Front Side', icon: User, camera: false },
+    { type: 'nid_back', label: 'NID Back Side', icon: User, camera: false },
+    { type: 'driving_license_front', label: 'License Front', icon: Car, camera: false },
+    { type: 'driving_license_back', label: 'License Back', icon: Car, camera: false },
+    { type: 'face_photo', label: 'Live Face Photo', icon: Camera, camera: true },
+  ];
   
-  // Count verified docs
-  const verifiedCount = requiredDocuments.filter((doc) => 
-    existingDocuments[doc.type]?.status === 'approved'
+  const getDocumentByType = (type) => existingDocuments[type];
+  
+  const approvedCount = requiredDocuments.filter((doc) => 
+    getDocumentByType(doc.type)?.status === 'approved'
   ).length;
   
-  // Count pending (already submitted + local pending)
-  const pendingCount = requiredDocuments.filter((doc) => {
-    const existing = existingDocuments[doc.type];
-    const pending = pendingUploads[doc.type];
-    return existing?.status === 'pending' || (pending && !existing);
-  }).length;
+  const pendingCount = requiredDocuments.filter((doc) => 
+    getDocumentByType(doc.type)?.status === 'pending'
+  ).length;
   
-  // Check if all required have been submitted
-  const allSubmitted = requiredDocuments.every((doc) => {
-    return existingDocuments[doc.type] || pendingUploads[doc.type];
-  });
+  const rejectedCount = requiredDocuments.filter((doc) => 
+    getDocumentByType(doc.type)?.status === 'rejected'
+  ).length;
   
   const totalRequired = requiredDocuments.length;
-  const progressPercent = Math.round((verifiedCount / totalRequired) * 100);
+  const progressPercent = Math.round((approvedCount / totalRequired) * 100);
+  const isFullyVerified = approvedCount >= totalRequired;
   
   if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <div className="flex justify-center py-20"><Spinner size="lg" /></div>;
   }
   
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-900 mb-1">Driver Verification</h1>
-      <p className="text-slate-500 mb-6">Upload all documents, then submit for review</p>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-2xl font-bold text-slate-900">Driver Verification</h1>
+        <Button size="sm" variant="outline" onClick={handleRefresh} isLoading={refreshing}>
+          <RefreshCw className="w-3 h-3" /> Refresh Status
+        </Button>
+      </div>
+      <p className="text-slate-500 mb-6">Complete all steps to unlock vehicle booking</p>
       
       {/* Status Card */}
-      <Card className="mb-8 bg-blue-50 border-blue-200">
+      <Card className={`mb-6 ${isFullyVerified ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
         <div className="flex items-center gap-4 mb-3">
-          <Shield className="w-8 h-8 text-blue-600 shrink-0" />
+          <Shield className={`w-8 h-8 shrink-0 ${isFullyVerified ? 'text-green-600' : 'text-blue-600'}`} />
           <div className="flex-1">
-            <p className="font-bold text-blue-800">
-              {verifiedCount === totalRequired ? '✅ Fully Verified' : `Verification: ${verifiedCount}/${totalRequired}`}
+            <p className={`font-bold ${isFullyVerified ? 'text-green-800' : 'text-blue-800'}`}>
+              {isFullyVerified ? '✅ Fully Verified!' : `Verification: ${approvedCount}/${totalRequired}`}
             </p>
             <p className="text-sm text-slate-600">
-              {pendingCount > 0 ? `${pendingCount} documents under review` : 'Upload all documents below'}
+              {pendingCount > 0 && `${pendingCount} under review`}
+              {rejectedCount > 0 && ` • ${rejectedCount} rejected`}
+              {isFullyVerified && ' — You can now book vehicles!'}
             </p>
           </div>
         </div>
         
-        <div className="w-full bg-slate-200 rounded-full h-2">
-          <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${progressPercent}%` }} />
+        <div className="w-full bg-slate-200 rounded-full h-2.5">
+          <div
+            className={`h-2.5 rounded-full transition-all ${isFullyVerified ? 'bg-green-600' : 'bg-blue-600'}`}
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
       </Card>
       
       {/* Documents List */}
-      <h2 className="text-lg font-semibold text-slate-900 mb-4">Upload Documents</h2>
+      <h2 className="text-lg font-semibold text-slate-900 mb-4">Required Documents</h2>
       
       <div className="space-y-3">
         {requiredDocuments.map((doc) => {
-          const existing = existingDocuments[doc.type];
+          const existing = getDocumentByType(doc.type);
           const pending = pendingUploads[doc.type];
-          const statusConfig = existing ? getStatusConfig(existing.status) : null;
           const DocIcon = doc.icon;
-          const StatusIcon = statusConfig?.icon;
           
           return (
             <Card key={doc.type} className="p-4">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
+                <div className="w-11 h-11 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
                   <DocIcon className="w-5 h-5 text-slate-600" />
                 </div>
                 
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-slate-900 text-sm">{doc.label}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     {existing
                       ? `Uploaded: ${formatDate(existing.created_at)}`
                       : pending
                         ? 'Ready to submit ✓'
-                        : doc.camera ? 'Camera capture required' : 'Upload file'}
+                        : doc.camera ? 'Camera capture required' : 'Upload required'}
                   </p>
                 </div>
                 
-                {/* Status */}
-                {statusConfig ? (
-                  <Badge variant={statusConfig.variant} size="sm">
-                    {StatusIcon && <StatusIcon className="w-3 h-3 mr-1" />}
-                    {statusConfig.label}
+                {existing?.status === 'approved' ? (
+                  <Badge variant="success" size="sm">
+                    <CheckCircle className="w-3 h-3 mr-1" /> Verified
+                  </Badge>
+                ) : existing?.status === 'pending' ? (
+                  <Badge variant="warning" size="sm">
+                    <Clock className="w-3 h-3 mr-1" /> Under Review
+                  </Badge>
+                ) : existing?.status === 'rejected' ? (
+                  <Badge variant="danger" size="sm">
+                    <XCircle className="w-3 h-3 mr-1" /> Rejected
                   </Badge>
                 ) : pending ? (
-                  <>
-                    <Badge variant="primary" size="sm">Pending Submit</Badge>
-                    <button onClick={() => handleRemovePending(doc.type)} className="text-xs text-red-500 hover:underline">
-                      Remove
-                    </button>
-                  </>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="primary" size="sm">Ready</Badge>
+                    <button onClick={() => handleRemovePending(doc.type)} className="text-xs text-red-500 hover:underline">Remove</button>
+                  </div>
                 ) : doc.camera ? (
                   <Button size="sm" onClick={() => { setCameraForType(doc.type); setCameraOpen(true); }}>
-                    <Camera className="w-4 h-4" />
-                    Open Camera
+                    <Camera className="w-3 h-3" /> Capture
                   </Button>
                 ) : (
                   <label className="cursor-pointer">
                     <input
                       type="file"
-                      accept="image/jpeg,image/png,application/pdf"
+                      accept=".jpg,.jpeg,.png,.pdf"
                       className="hidden"
-                      onChange={(e) => handleFileSelect(doc.type, e.target.files[0])}
+                      onChange={(e) => { if (e.target.files[0]) handleFileSelect(doc.type, e.target.files[0]); }}
                     />
-                    <span className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                      <Upload className="w-4 h-4" />
-                      Upload
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700">
+                      <Upload className="w-3 h-3" /> Upload
                     </span>
                   </label>
                 )}
               </div>
               
-              {/* Rejection Reason */}
-              {existing?.status === 'rejected' && existing.rejection_reason && (
-                <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {existing.rejection_reason}
-                </p>
+              {/* Rejected — Re-upload */}
+              {existing?.status === 'rejected' && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-xs text-red-700 mb-2 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    <strong>Rejection Reason:</strong> {existing.rejection_reason || 'Document was rejected'}
+                  </p>
+                  
+                  {doc.camera ? (
+                    <Button size="sm" onClick={() => { setCameraForType(doc.type); setCameraOpen(true); }}>
+                      <Camera className="w-3 h-3" /> Retake Photo
+                    </Button>
+                  ) : (
+                    <label className="cursor-pointer inline-block">
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        className="hidden"
+                        onChange={(e) => { if (e.target.files[0]) handleFileSelect(doc.type, e.target.files[0]); }}
+                      />
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700">
+                        <Upload className="w-3 h-3" /> Re-upload Document
+                      </span>
+                    </label>
+                  )}
+                </div>
               )}
             </Card>
           );
@@ -283,21 +279,12 @@ const CustomerKYC = () => {
       </div>
       
       {/* Submit Button */}
-      <Button
-        fullWidth
-        size="lg"
-        onClick={handleSubmitAll}
-        isLoading={submitting}
-        disabled={Object.keys(pendingUploads).length === 0}
-        className="mt-6"
-      >
-        <Send className="w-5 h-5" />
-        {submitting ? 'Submitting...' : `Submit ${Object.keys(pendingUploads).length} Documents for Review`}
-      </Button>
-      
-      <p className="text-center text-xs text-slate-400 mt-3">
-        All documents will be reviewed together by our admin team within 24-48 hours
-      </p>
+      {Object.keys(pendingUploads).length > 0 && (
+        <Button fullWidth size="lg" onClick={handleSubmitAll} isLoading={submitting} className="mt-6">
+          <Send className="w-5 h-5" />
+          Submit {Object.keys(pendingUploads).length} Document(s) for Review
+        </Button>
+      )}
       
       {/* Camera Modal */}
       {cameraOpen && (

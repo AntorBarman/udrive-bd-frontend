@@ -65,10 +65,12 @@ import VehicleDocuments from './pages/admin/VehicleDocuments';
 import AdminWallets from './pages/admin/Wallets';
 import AdminCommissions from './pages/admin/Commissions';
 import AdminSettings from './pages/admin/AdminSettings';
-// Imports
+import AdminDocuments from './pages/admin/AdminDocuments';
 import BecomeOwner from './pages/public/BecomeOwner';
 import HowItWorks from './pages/public/HowItWorks';
 import About from './pages/public/About';
+import RequireAuth from './components/RequireAuth';
+
 
 
 function App() {
@@ -304,6 +306,12 @@ function App() {
           <ProtectedRoute allowedRoles={['admin', 'staff']}>
             <AdminLayout><AdminSettings /></AdminLayout>
           </ProtectedRoute>
+        } />
+        // Add route
+        <Route path="/admin/documents" element={
+          <RequireAuth allowedRoles={['admin', 'staff']}>
+            <AdminDocuments />
+          </RequireAuth>
         } />
       </Routes>
     </Router>

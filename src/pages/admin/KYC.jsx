@@ -1,449 +1,613 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
   Search,
-  Shield,
-  UserCheck,
-  CarFront,
-  ArrowLeft,
-  Check,
-  X,
-  AlertTriangle,
-  User,
-  Camera,
   FileText,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Eye,
+  User,
+  RefreshCw
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
-import Button from '../../components/ui/Button';
+import api from '../../services/api';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
-import Input from '../../components/ui/Input';
+import Button from '../../components/ui/Button';
 import Spinner from '../../components/ui/Spinner';
-import ErrorState from '../../components/ui/ErrorState';
-import EmptyState from '../../components/ui/EmptyState';
-import PageHeader from '../../components/admin/PageHeader';
-import StatusBadge from '../../components/admin/StatusBadge';
-import api from '../../services/api';
-import { formatDate } from '../../utils/formatters';
+import Input from '../../components/ui/Input';
+import { toast } from 'react-toastify';
 
 const AdminKYC = () => {
+  const navigate = useNavigate();
   const { accessToken } = useSelector((state) => state.auth);
-  const [searchParams] = useSearchParams();
-  const initialType = searchParams.get('type') || 'customer';
   
   const [documents, setDocuments] = useState([]);
+  const [filteredDocs, setFilteredDocs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState(initialType);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('pending');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [userTypeFilter, setUserTypeFilter] = useState('all');
+  
+  const [stats, setStats] = useState({
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    total: 0
+  });
+
+  // ✅ Review states
   const [selectedUser, setSelectedUser] = useState(null);
-  const [actionLoading, setActionLoading] = useState(null);
-  const [rejectModal, setRejectModal] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  
+  // ✅ Reject modal states
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectDocId, setRejectDocId] = useState(null);
+  const [rejectDocName, setRejectDocName] = useState('');
   const [rejectReason, setRejectReason] = useState('');
-  
-  // Customer documents
-  const customerDocTypes = {
-    'nid_front': { label: 'NID Front', icon: User },
-    'nid_back': { label: 'NID Back', icon: User },
-    'driving_license_front': { label: 'License Front', icon: CarFront },
-    'driving_license_back': { label: 'License Back', icon: CarFront },
-    'face_photo': { label: 'Face Photo', icon: Camera },
-  };
-  
-  // Owner documents (identity only)
-  const ownerDocTypes = {
-    'nid': { label: 'Owner NID', icon: User },
-    'face_photo': { label: 'Owner Face Photo', icon: Camera },
-    'driving_license': { label: 'Owner Driving License', icon: CarFront },
-  };
-  
-  const fetchDocuments = useCallback(async () => {
-    if (!accessToken) return;
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await api.get('/admin/kyc');
-      setDocuments(response.data.data || []);
-    } catch (error) {
-      setError(error.response?.data?.message || 'Failed to load KYC');
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken]);
-  
+  const [rejectLoading, setRejectLoading] = useState(false);
+
   useEffect(() => {
     fetchDocuments();
-  }, [fetchDocuments]);
-  
+  }, []);
+
+  const fetchDocuments = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/admin/documents');
+      const data = response.data.data || [];
+      
+      const kycDocs = data.filter(doc => 
+        ['nid_front', 'nid_back', 'driving_license_front', 'driving_license_back', 'face_photo'].includes(doc.document_type)
+      );
+      
+      setDocuments(kycDocs);
+      updateFilters(kycDocs, searchTerm, statusFilter, userTypeFilter);
+      calculateStats(kycDocs);
+      
+    } catch (error) {
+      console.error('Failed to fetch KYC documents:', error);
+      toast.error('Failed to load KYC documents');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const calculateStats = (docs) => {
+    const pending = docs.filter(d => d.status === 'pending').length;
+    const approved = docs.filter(d => d.status === 'approved').length;
+    const rejected = docs.filter(d => d.status === 'rejected').length;
+    
+    setStats({
+      pending,
+      approved,
+      rejected,
+      total: docs.length
+    });
+  };
+
+  const updateFilters = (docs, search, status, userType) => {
+    let filtered = [...docs];
+    
+    if (status !== 'all') {
+      filtered = filtered.filter(d => d.status === status);
+    }
+    
+    if (userType !== 'all') {
+      filtered = filtered.filter(d => d.user_role === userType);
+    }
+    
+    if (search) {
+      const term = search.toLowerCase();
+      filtered = filtered.filter(d => 
+        d.user_name?.toLowerCase().includes(term) ||
+        d.user_email?.toLowerCase().includes(term)
+      );
+    }
+    
+    setFilteredDocs(filtered);
+  };
+
+  const handleSearch = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    updateFilters(documents, value, statusFilter, userTypeFilter);
+  };
+
+  const handleStatusFilter = (status) => {
+    setStatusFilter(status);
+    updateFilters(documents, searchTerm, status, userTypeFilter);
+  };
+
+  const handleUserTypeFilter = (type) => {
+    setUserTypeFilter(type);
+    updateFilters(documents, searchTerm, statusFilter, type);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDocuments();
+    toast.success('Refreshed');
+  };
+
+  // ✅ Approve handler
+  const handleApprove = async (docId) => {
+    if (!docId) {
+      toast.error('Document ID is missing');
+      return;
+    }
+    
+    setActionLoading(true);
+    try {
+      await api.patch(`/admin/documents/${docId}/approve`);
+      toast.success('Document approved!');
+      setSelectedUser(null);
+      await fetchDocuments();
+    } catch (error) {
+      console.error('Approval failed:', error);
+      toast.error(error.response?.data?.message || 'Approval failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ✅ Open reject modal
+  const openRejectModal = (doc) => {
+    console.log('🔍 Opening reject modal for:', doc);
+    
+    if (!doc || !doc.id) {
+      toast.error('Document data is missing');
+      return;
+    }
+    
+    setRejectDocId(doc.id);
+    setRejectDocName(doc.document_type || 'Document');
+    setRejectReason('');
+    setShowRejectModal(true);
+  };
+
+  // ✅ Handle reject - FIXED
+  const handleReject = async () => {
+    console.log('🔍 Rejecting document ID:', rejectDocId);
+    console.log('🔍 Reason:', rejectReason);
+    
+    if (!rejectDocId) {
+      toast.error('Document ID is missing');
+      return;
+    }
+    
+    if (!rejectReason.trim()) {
+      toast.warning('Please provide rejection reason');
+      return;
+    }
+
+    setRejectLoading(true);
+    try {
+      await api.patch(`/admin/documents/${rejectDocId}/reject`, { reason: rejectReason });
+      toast.success('Document rejected successfully!');
+      setShowRejectModal(false);
+      setRejectDocId(null);
+      setRejectReason('');
+      setSelectedUser(null);
+      await fetchDocuments();
+    } catch (error) {
+      console.error('Rejection failed:', error);
+      toast.error(error.response?.data?.message || 'Rejection failed');
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'approved':
+        return <Badge variant="success"><CheckCircle className="w-3 h-3 mr-1" /> Approved</Badge>;
+      case 'pending':
+        return <Badge variant="warning"><Clock className="w-3 h-3 mr-1" /> Pending</Badge>;
+      case 'rejected':
+        return <Badge variant="danger"><XCircle className="w-3 h-3 mr-1" /> Rejected</Badge>;
+      default:
+        return <Badge variant="secondary">Unknown</Badge>;
+    }
+  };
+
+  const getDocumentLabel = (type) => {
+    const labels = {
+      'nid_front': 'NID Front',
+      'nid_back': 'NID Back',
+      'driving_license_front': 'License Front',
+      'driving_license_back': 'License Back',
+      'face_photo': 'Face Photo'
+    };
+    return labels[type] || type.replace(/_/g, ' ').toUpperCase();
+  };
+
   const groupByUser = (docs) => {
     const groups = {};
-    docs.forEach((doc) => {
+    docs.forEach(doc => {
       const key = doc.user_id;
       if (!groups[key]) {
         groups[key] = {
-          user_id: doc.user_id,
-          user_name: doc.user_name,
-          user_email: doc.user_email,
-          user_phone: doc.user_phone,
-          documents: [],
+          user: {
+            id: doc.user_id,
+            name: doc.user_name,
+            email: doc.user_email,
+            phone: doc.user_phone,
+            role: doc.user_role
+          },
+          documents: []
         };
       }
       groups[key].documents.push(doc);
     });
     return Object.values(groups);
   };
-  
-  const customerGroups = groupByUser(
-    documents.filter((d) => Object.keys(customerDocTypes).includes(d.document_type))
-  );
-  
-  const ownerGroups = groupByUser(
-    documents.filter((d) => Object.keys(ownerDocTypes).includes(d.document_type))
-  );
-  
-  const activeGroups = activeTab === 'customer' ? customerGroups : ownerGroups;
-  const activeDocTypes = activeTab === 'customer' ? customerDocTypes : ownerDocTypes;
-  
-  const filteredGroups = activeGroups.filter((group) => {
-    const searchStr = `${group.user_name} ${group.user_email}`.toLowerCase();
-    const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
-    
-    if (statusFilter === 'all') return matchesSearch;
-    
-    const hasStatus = group.documents.some((d) => d.status === statusFilter);
-    return matchesSearch && hasStatus;
-  });
-  
-  const handleApprove = async (docId) => {
-    setActionLoading(docId);
-    try {
-      await api.patch(`/admin/kyc/${docId}/approve`);
-      fetchDocuments();
-      // Update selectedUser
-      if (selectedUser) {
-        const updatedDocs = selectedUser.documents.map((d) =>
-          d.id === docId ? { ...d, status: 'approved' } : d
-        );
-        setSelectedUser({ ...selectedUser, documents: updatedDocs });
-      }
-    } catch (error) {
-      alert('Failed to approve');
-    } finally {
-      setActionLoading(null);
-    }
+
+  const isFullyVerified = (userDocs) => {
+    const required = ['nid_front', 'nid_back', 'driving_license_front', 'driving_license_back', 'face_photo'];
+    const approved = userDocs.filter(d => d.status === 'approved').map(d => d.document_type);
+    return required.every(type => approved.includes(type));
   };
-  
-  const handleRejectConfirm = async () => {
-    if (!rejectReason.trim()) {
-      alert('Please provide rejection reason');
-      return;
-    }
-    
-    setActionLoading(rejectModal);
-    try {
-      await api.patch(`/admin/kyc/${rejectModal}/reject`, { reason: rejectReason });
-      fetchDocuments();
-      if (selectedUser) {
-        const updatedDocs = selectedUser.documents.map((d) =>
-          d.id === rejectModal ? { ...d, status: 'rejected', rejection_reason: rejectReason } : d
-        );
-        setSelectedUser({ ...selectedUser, documents: updatedDocs });
-      }
-      setRejectModal(null);
-      setRejectReason('');
-    } catch (error) {
-      alert('Failed to reject');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-  
-  const handleApproveAll = async (userId) => {
-    if (!confirm('Approve ALL pending documents for this user?')) return;
-    setActionLoading(`all-${userId}`);
-    
-    try {
-      const pendingDocs = documents.filter((d) => d.user_id === userId && d.status === 'pending');
-      for (const doc of pendingDocs) {
-        await api.patch(`/admin/kyc/${doc.id}/approve`);
-      }
-      alert('All documents approved!');
-      fetchDocuments();
-      setSelectedUser(null);
-    } catch (error) {
-      alert('Failed');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-  
+
+  const groupedUsers = groupByUser(filteredDocs);
+
   if (loading) {
-    return <div className="flex justify-center py-20"><Spinner size="lg" /></div>;
-  }
-  
-  if (error && documents.length === 0) {
-    return <ErrorState title="Failed" message={error} onRetry={fetchDocuments} />;
-  }
-  
-  return (
-    <div>
-      <PageHeader 
-        title="KYC Verification Portal" 
-        description="Review and verify customer & owner identity documents"
-      />
-      
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 bg-white border border-slate-200 rounded-lg p-1 w-fit">
-        <button
-          onClick={() => { setActiveTab('customer'); setSelectedUser(null); setStatusFilter('pending'); }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-            activeTab === 'customer' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          Customer KYC
-          <span className="text-xs opacity-70">({customerGroups.length})</span>
-        </button>
-        
-        <button
-          onClick={() => { setActiveTab('owner'); setSelectedUser(null); setStatusFilter('pending'); }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-            activeTab === 'owner' ? 'bg-green-600 text-white' : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          <CarFront className="w-4 h-4" />
-          Owner KYC
-          <span className="text-xs opacity-70">({ownerGroups.length})</span>
-        </button>
+    return (
+      <div className="flex justify-center py-20">
+        <Spinner size="lg" />
       </div>
-      
-      {selectedUser ? (
-        /* ============ APPLICANT REVIEW VIEW ============ */
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <button onClick={() => setSelectedUser(null)} className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 mb-3">
-            <ArrowLeft className="w-4 h-4" />
-            Back to list
-          </button>
-          
-          {/* Applicant Info Card */}
-          <Card className="mb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  activeTab === 'customer' ? 'bg-blue-100' : 'bg-green-100'
-                }`}>
-                  <span className={`text-lg font-bold ${activeTab === 'customer' ? 'text-blue-600' : 'text-green-600'}`}>
-                    {selectedUser.user_name?.[0]?.toUpperCase() || '?'}
-                  </span>
+          <h1 className="text-2xl font-bold text-slate-900">KYC Verification Portal</h1>
+          <p className="text-slate-500">Review and verify customer & owner identity documents</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefresh} isLoading={refreshing}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Card className="p-4 text-center">
+          <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+          <p className="text-xs text-slate-500">Pending</p>
+        </Card>
+        <Card className="p-4 text-center border-green-200 bg-green-50">
+          <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
+          <p className="text-xs text-green-600">Approved</p>
+        </Card>
+        <Card className="p-4 text-center border-red-200 bg-red-50">
+          <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
+          <p className="text-xs text-red-600">Rejected</p>
+        </Card>
+        <Card className="p-4 text-center">
+          <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
+          <p className="text-xs text-slate-500">Total</p>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        <Button 
+          size="sm" 
+          variant={statusFilter === 'all' ? 'primary' : 'outline'}
+          onClick={() => handleStatusFilter('all')}
+        >
+          All ({documents.length})
+        </Button>
+        <Button 
+          size="sm" 
+          variant={statusFilter === 'pending' ? 'primary' : 'outline'}
+          onClick={() => handleStatusFilter('pending')}
+          className="text-yellow-600"
+        >
+          Pending ({stats.pending})
+        </Button>
+        <Button 
+          size="sm" 
+          variant={statusFilter === 'approved' ? 'primary' : 'outline'}
+          onClick={() => handleStatusFilter('approved')}
+          className="text-green-600"
+        >
+          Approved ({stats.approved})
+        </Button>
+        <Button 
+          size="sm" 
+          variant={statusFilter === 'rejected' ? 'primary' : 'outline'}
+          onClick={() => handleStatusFilter('rejected')}
+          className="text-red-600"
+        >
+          Rejected ({stats.rejected})
+        </Button>
+        
+        <div className="flex-1 min-w-[200px]">
+          <Input
+            placeholder="Search by name or email..."
+            icon={Search}
+            value={searchTerm}
+            onChange={handleSearch}
+          />
+        </div>
+      </div>
+
+      {/* User Type Tabs */}
+      <div className="flex gap-2 mb-4">
+        <Button 
+          size="sm" 
+          variant={userTypeFilter === 'all' ? 'primary' : 'outline'}
+          onClick={() => handleUserTypeFilter('all')}
+        >
+          All Users
+        </Button>
+        <Button 
+          size="sm" 
+          variant={userTypeFilter === 'customer' ? 'primary' : 'outline'}
+          onClick={() => handleUserTypeFilter('customer')}
+        >
+          Customers
+        </Button>
+        <Button 
+          size="sm" 
+          variant={userTypeFilter === 'owner' ? 'primary' : 'outline'}
+          onClick={() => handleUserTypeFilter('owner')}
+        >
+          Owners
+        </Button>
+      </div>
+
+      {/* KYC List */}
+      {groupedUsers.length === 0 ? (
+        <Card className="p-12 text-center">
+          <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-slate-900">No KYC applications</h3>
+          <p className="text-slate-500 text-sm">
+            {statusFilter !== 'all' 
+              ? `No ${statusFilter} applications match your filters.` 
+              : 'No applications match your filters.'}
+          </p>
+          <Button variant="outline" className="mt-4" onClick={() => handleStatusFilter('all')}>
+            View All
+          </Button>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {groupedUsers.map((group) => {
+            const verified = isFullyVerified(group.documents);
+            const hasPending = group.documents.some(d => d.status === 'pending');
+            const hasRejected = group.documents.some(d => d.status === 'rejected');
+            
+            return (
+              <Card key={group.user.id} className="p-4 hover:shadow-md transition-shadow">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                      <User className="w-5 h-5 text-slate-500" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900">{group.user.name || 'Unknown'}</p>
+                      <p className="text-sm text-slate-500">{group.user.email}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant={group.user.role === 'owner' ? 'primary' : 'secondary'} size="sm">
+                          {group.user.role || 'customer'}
+                        </Badge>
+                        {verified ? (
+                          <Badge variant="success" size="sm">✅ Fully Verified</Badge>
+                        ) : hasRejected ? (
+                          <Badge variant="danger" size="sm">❌ Some Rejected</Badge>
+                        ) : hasPending ? (
+                          <Badge variant="warning" size="sm">⏳ Pending</Badge>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-2">
+                      {group.documents.map(doc => (
+                        <div key={doc.id} className="text-center">
+                          <div className="flex items-center gap-1">
+                            {doc.status === 'approved' ? (
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            ) : doc.status === 'pending' ? (
+                              <Clock className="w-4 h-4 text-yellow-600" />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            )}
+                            <span className="text-[10px] text-slate-500">
+                              {getDocumentLabel(doc.document_type).split(' ')[0]}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setSelectedUser(group)}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      View Details
+                    </Button>
+                  </div>
                 </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ✅ Review Drawer */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/50" onClick={() => {
+            setSelectedUser(null);
+          }} />
+          <div className="absolute right-0 top-0 bottom-0 w-[500px] max-w-[90%] bg-white shadow-xl overflow-y-auto">
+            <div className="p-4 border-b border-slate-200 sticky top-0 bg-white">
+              <div className="flex items-center justify-between mb-2">
                 <div>
-                  <p className="font-semibold text-slate-900">{selectedUser.user_name}</p>
-                  <p className="text-sm text-slate-500">{selectedUser.user_email}</p>
-                  <p className="text-xs text-slate-400">{selectedUser.user_phone}</p>
+                  <h3 className="font-semibold text-slate-900">KYC Review</h3>
+                  <p className="text-sm text-slate-500">{selectedUser.user.name}</p>
                 </div>
+                <button onClick={() => setSelectedUser(null)} className="p-2 hover:bg-slate-100 rounded">
+                  ✕
+                </button>
               </div>
-              
               <div className="flex gap-2">
-                <Button size="sm" variant="success" onClick={() => handleApproveAll(selectedUser.user_id)} isLoading={actionLoading === `all-${selectedUser.user_id}`}>
-                  <Check className="w-4 h-4" />
-                  Approve All
+                <Badge variant={selectedUser.user.role === 'owner' ? 'primary' : 'secondary'}>
+                  {selectedUser.user.role || 'customer'}
+                </Badge>
+                {isFullyVerified(selectedUser.documents) ? (
+                  <Badge variant="success">✅ Verified</Badge>
+                ) : (
+                  <Badge variant="warning">⏳ Incomplete</Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {selectedUser.documents.map((doc) => (
+                <div key={doc.id} className="p-4 bg-slate-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-slate-900">{getDocumentLabel(doc.document_type)}</p>
+                      <p className="text-xs text-slate-500">
+                        Uploaded: {new Date(doc.created_at).toLocaleDateString()}
+                      </p>
+                      {doc.rejection_reason && (
+                        <p className="text-xs text-red-600 mt-1">
+                          Reason: {doc.rejection_reason}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(doc.status)}
+                      
+                      {doc.status === 'pending' && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="success"
+                            onClick={() => handleApprove(doc.id)}
+                            isLoading={actionLoading}
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Approve
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="danger"
+                            onClick={() => openRejectModal(doc)}
+                          >
+                            <XCircle className="w-3 h-3 mr-1" />
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                      
+                      {doc.document_url && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => window.open(doc.document_url, '_blank')}
+                        >
+                          <Eye className="w-3 h-3" />
+                          View
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="flex gap-3 pt-4 border-t border-slate-200">
+                <Button 
+                  variant="outline" 
+                  fullWidth 
+                  onClick={() => setSelectedUser(null)}
+                >
+                  Close
                 </Button>
               </div>
             </div>
-            
-            {/* Progress */}
-            <div className="mt-3">
-              <div className="flex justify-between text-xs text-slate-500 mb-1">
-                <span>Verification Progress</span>
-                <span>
-                  {selectedUser.documents.filter((d) => d.status === 'approved').length}/{Object.keys(activeDocTypes).length} verified
-                </span>
-              </div>
-              <div className="w-full bg-slate-200 rounded-full h-2">
-                <div
-                  className="bg-green-600 h-2 rounded-full transition-all"
-                  style={{ width: `${(selectedUser.documents.filter((d) => d.status === 'approved').length / Object.keys(activeDocTypes).length) * 100}%` }}
-                />
-              </div>
-            </div>
-          </Card>
-          
-          {/* Documents Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Object.entries(activeDocTypes).map(([docType, config]) => {
-              const doc = selectedUser.documents.find((d) => d.document_type === docType);
-              const DocIcon = config.icon;
-              
-              return (
-                <Card key={docType} className="overflow-hidden">
-                  {/* Header */}
-                  <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <DocIcon className="w-4 h-4 text-slate-500" />
-                      <p className="text-xs font-medium">{config.label}</p>
-                    </div>
-                    {doc ? (
-                      <StatusBadge status={doc.status} size="xs" />
-                    ) : (
-                      <Badge variant="default" size="xs">Not Uploaded</Badge>
-                    )}
-                  </div>
-                  
-                  {/* Preview */}
-                  <div className="aspect-video bg-slate-100 flex items-center justify-center">
-                    {doc?.document_url && doc.document_url.startsWith('http') ? (
-                      <img
-                        src={doc.document_url}
-                        alt={config.label}
-                        className="w-full h-full object-cover"
-                        crossOrigin="anonymous"
-                      />
-                    ) : (
-                      <DocIcon className="w-10 h-10 text-slate-300" />
-                    )}
-                  </div>
-                  
-                  {/* Actions */}
-                  {doc && (
-                    <div className="p-2">
-                      {doc.status === 'pending' ? (
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="success" fullWidth onClick={() => handleApprove(doc.id)} isLoading={actionLoading === doc.id}>
-                            <Check className="w-3 h-3" /> Approve
-                          </Button>
-                          <Button size="sm" variant="danger" fullWidth onClick={() => setRejectModal(doc.id)}>
-                            <X className="w-3 h-3" /> Reject
-                          </Button>
-                        </div>
-                      ) : doc.status === 'rejected' ? (
-                        <div className="p-2 bg-red-50 rounded">
-                          <p className="text-xs text-red-700">{doc.rejection_reason || 'Rejected'}</p>
-                        </div>
-                      ) : (
-                        <div className="p-2 bg-green-50 rounded">
-                          <p className="text-xs text-green-700 flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" /> Verified
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </Card>
-              );
-            })}
           </div>
         </div>
-      ) : (
-        /* ============ APPLICANT LIST VIEW ============ */
-        <>
-          {/* Filters */}
-          <div className="flex gap-2 mb-3">
-            <div className="flex-1">
-              <Input
-                placeholder={`Search ${activeTab === 'customer' ? 'customers' : 'owners'}...`}
-                icon={Search}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="all">All</option>
-            </select>
-          </div>
-          
-          {/* Applicant List */}
-          {filteredGroups.length > 0 ? (
-            <div className="space-y-2">
-              {filteredGroups.map((group) => {
-                const approvedCount = group.documents.filter((d) => d.status === 'approved').length;
-                const pendingCount = group.documents.filter((d) => d.status === 'pending').length;
-                const totalRequired = Object.keys(activeDocTypes).length;
-                
-                return (
-                  <Card
-                    key={group.user_id}
-                    hoverable
-                    className="flex items-center gap-3 p-3 cursor-pointer"
-                    onClick={() => setSelectedUser(group)}
-                  >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      activeTab === 'customer' ? 'bg-blue-100' : 'bg-green-100'
-                    }`}>
-                      <span className={`font-bold ${activeTab === 'customer' ? 'text-blue-600' : 'text-green-600'}`}>
-                        {group.user_name?.[0]?.toUpperCase() || '?'}
-                      </span>
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold">{group.user_name}</p>
-                        {pendingCount > 0 && <Badge variant="warning" size="xs">{pendingCount} pending</Badge>}
-                      </div>
-                      <p className="text-xs text-slate-500 truncate">{group.user_email}</p>
-                      
-                      {/* Progress */}
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="flex-1 max-w-[100px] bg-slate-200 rounded-full h-1">
-                          <div className="bg-green-600 h-1 rounded-full" style={{ width: `${(approvedCount / totalRequired) * 100}%` }} />
-                        </div>
-                        <span className="text-[10px] text-slate-500">{approvedCount}/{totalRequired}</span>
-                      </div>
-                    </div>
-                    
-                    <span className="text-xs text-blue-600 font-medium">Review →</span>
-                  </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <EmptyState
-              title={`No ${activeTab} KYC applications`}
-              description="No applications match your filters."
-              icon={Shield}
-            />
-          )}
-        </>
       )}
-      
-      {/* Reject Modal */}
-      {rejectModal && (
+
+      {/* ✅ Reject Modal - Clean and Simple */}
+      {showRejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setRejectModal(null)} />
-          <div className="relative bg-white rounded-xl p-5 max-w-sm w-full mx-4">
-            <div className="flex items-start gap-2 mb-3">
-              <XCircle className="w-5 h-5 text-red-600 shrink-0" />
-              <div>
-                <h3 className="font-semibold text-sm text-slate-900">Reject Document</h3>
-                <p className="text-xs text-slate-500">Provide reason for rejection</p>
-              </div>
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50" 
+            onClick={() => {
+              setShowRejectModal(false);
+              setRejectDocId(null);
+              setRejectReason('');
+            }} 
+          />
+          
+          {/* Modal */}
+          <div className="relative bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900">Reject Document</h3>
+              <button 
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectDocId(null);
+                  setRejectReason('');
+                }}
+                className="p-1 hover:bg-slate-100 rounded"
+              >
+                ✕
+              </button>
             </div>
+            
+            <p className="text-sm text-slate-600 mb-4">
+              {getDocumentLabel(rejectDocName)} — Please provide a reason for rejection
+            </p>
             
             <textarea
-              rows="3"
-              placeholder="e.g., Document is unclear, expired, mismatch..."
+              rows="4"
+              placeholder="Enter rejection reason..."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg p-2.5 text-sm mb-3"
+              className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              autoFocus
             />
             
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" fullWidth onClick={() => setRejectModal(null)}>
+            <div className="flex gap-3 mt-4">
+              <Button 
+                variant="outline" 
+                fullWidth 
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectDocId(null);
+                  setRejectReason('');
+                }}
+              >
                 Cancel
               </Button>
-              <Button variant="danger" size="sm" fullWidth onClick={handleRejectConfirm} isLoading={actionLoading === rejectModal}>
-                Reject Document
+              <Button 
+                variant="danger" 
+                fullWidth 
+                onClick={handleReject} 
+                isLoading={rejectLoading}
+                disabled={!rejectReason.trim()}
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                Confirm Reject
               </Button>
             </div>
           </div>

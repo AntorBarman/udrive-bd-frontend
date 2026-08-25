@@ -5,8 +5,9 @@ import BookingStepper from '../../components/booking/BookingStepper';
 import BookingSummary from '../../components/booking/BookingSummary';
 import PriceBreakdown from '../../components/booking/PriceBreakdown';
 import Button from '../../components/ui/Button';
-import { bookingSteps, mockBookingVehicle } from '../../mocks/booking';
+import { bookingSteps } from '../../mocks/booking';
 import bookingService from '../../services/bookingService';
+import { toast } from 'react-toastify';
 
 const BookingConfirm = () => {
   const location = useLocation();
@@ -16,22 +17,34 @@ const BookingConfirm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState('');
 
-  const bookingData = location.state || {
-    vehicle: mockBookingVehicle,
-    pickupDate: '2026-08-25',
-    returnDate: '2026-08-28',
-    days: 3,
-    rentalAmount: 10500,
-    totalAmount: 17500,
-  };
+  const bookingData = location.state;
+
+  console.log('🔍 Full bookingData:', bookingData);
+
+  if (!bookingData || !bookingData.vehicle) {
+    console.error('❌ No booking data found');
+    toast.error('Booking data missing. Please start over.');
+    navigate('/vehicles');
+    return null;
+  }
 
   const { vehicle, pickupDate, returnDate, days, rentalAmount, totalAmount } = bookingData;
-
-  console.log('🔍 BookingConfirm data:', { pickupDate, returnDate, days });
+  const vehicleId = vehicle?.id;
 
   const handleProceedToPayment = async () => {
     if (!agreed) {
-      alert('Please agree to the terms and conditions');
+      toast.warning('Please agree to the terms and conditions');
+      return;
+    }
+
+    if (!vehicleId) {
+      toast.error('Vehicle ID is missing!');
+      console.error('❌ Vehicle ID missing:', vehicle);
+      return;
+    }
+
+    if (!pickupDate || !returnDate) {
+      toast.error('Please select pickup and return dates');
       return;
     }
 
@@ -39,33 +52,73 @@ const BookingConfirm = () => {
     setIsLoading(true);
 
     try {
-      // No frontend date validation - let backend handle
       const bookingPayload = {
-        vehicle_id: vehicle.id,
-        pickup_date: pickupDate,
-        return_date: returnDate,
-        pickup_time: '10:00',
-        return_time: '10:00',
+        vehicleId: vehicleId,
+        pickupDate: pickupDate,
+        returnDate: returnDate,
+        pickupTime: '10:00',
+        returnTime: '10:00',
       };
 
       console.log('🔍 Sending to backend:', bookingPayload);
 
       const response = await bookingService.create(bookingPayload);
-      console.log('✅ Success:', response);
+      console.log('✅ Full response:', response);
 
-      const createdBooking = response.data || response;
+      const responseData = response?.data || response;
+      const booking = responseData?.booking || responseData?.data?.booking;
+      const bookingId = responseData?.bookingId || 
+                       booking?.id || 
+                       responseData?.data?.bookingId;
+
+      console.log('✅ Booking ID:', bookingId);
+
+      if (!bookingId) {
+        console.error('❌ No booking ID in response:', response);
+        toast.error('Booking created but ID not received.');
+        navigate('/bookings');
+        return;
+      }
+
+      localStorage.setItem('currentBookingId', bookingId);
 
       navigate('/booking/payment', {
         state: {
           ...bookingData,
-          bookingId: createdBooking.id,
-          booking: createdBooking,
+          bookingId: bookingId,
+          booking: booking,
+          gatewayUrl: responseData?.gatewayUrl || null,
         },
       });
+
     } catch (error) {
-      console.error('❌ Error:', error.response?.data);
-      const message = error.response?.data?.message || 'Failed to create booking';
-      setApiError(message);
+      console.error('❌ Error:', error);
+      
+      // ✅ Proper error message extraction
+      let errorMessage = 'Failed to create booking';
+      
+      if (error.response) {
+        console.log('❌ Error response status:', error.response.status);
+        console.log('❌ Error response data:', error.response.data);
+        
+        if (error.response.status === 409) {
+          errorMessage = '🚫 This vehicle is already booked for the selected dates. Please choose different dates or another vehicle.';
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data?.errors) {
+          errorMessage = error.response.data.errors.map(e => e.message).join(', ');
+        }
+      } else if (error.request) {
+        errorMessage = 'No response from server. Please check your connection.';
+      } else {
+        errorMessage = error.message || 'Failed to create booking';
+      }
+      
+      // ✅ Show toast
+      toast.error(errorMessage);
+      
+      // ✅ Show in UI
+      setApiError(errorMessage);
       setIsLoading(false);
     }
   };
@@ -105,10 +158,10 @@ const BookingConfirm = () => {
 
           <div className="space-y-4">
             <PriceBreakdown
-              dailyRate={vehicle.daily_rate}
+              dailyRate={vehicle?.daily_rate || 0}
               days={days}
               rentalAmount={rentalAmount}
-              depositAmount={vehicle.deposit_amount}
+              depositAmount={vehicle?.deposit_amount || 0}
               totalAmount={totalAmount}
             />
 

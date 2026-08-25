@@ -9,6 +9,7 @@ import {
   Camera,
   AlertCircle,
   Send,
+  RefreshCw,
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import Button from '../../components/ui/Button';
@@ -19,12 +20,14 @@ import ErrorState from '../../components/ui/ErrorState';
 import CameraCapture from '../../components/ui/CameraCapture';
 import api from '../../services/api';
 import { formatDate } from '../../utils/formatters';
+import { toast } from 'react-toastify';
 
 const OwnerDocuments = () => {
   const { accessToken } = useSelector((state) => state.auth);
 
   const [existingDocuments, setExistingDocuments] = useState({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [pendingUploads, setPendingUploads] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -37,18 +40,48 @@ const OwnerDocuments = () => {
     setError(null);
 
     try {
-      const response = await api.get('/documents/my');
-      const docs = response.data.data || [];
-      const docMap = {};
-      docs.forEach((doc) => {
-        docMap[doc.document_type] = doc;
+      // ✅ Get ALL documents (including rejected/inactive)
+      const response = await api.get('/documents/my', {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
       });
+      
+      const docs = response.data.data || [];
+      
+      // ✅ Show ALL documents (including rejected)
+      // Filter only identity documents
+      const identityTypes = [
+        'nid_front', 'nid_back',
+        'driving_license_front', 'driving_license_back',
+        'face_photo'
+      ];
+      
+      const identityDocs = docs.filter(doc => 
+        identityTypes.includes(doc.document_type)
+      );
+      
+      // ✅ Group by type, keep latest (including rejected)
+      const docMap = {};
+      identityDocs.forEach(doc => {
+        const key = doc.document_type;
+        // Keep the latest document (by created_at)
+        if (!docMap[key] || new Date(doc.created_at) > new Date(docMap[key].created_at)) {
+          docMap[key] = doc;
+        }
+      });
+      
       setExistingDocuments(docMap);
+      
+      console.log('🔍 Documents loaded:', docMap);
+      
     } catch (error) {
       console.error('Failed to fetch documents:', error);
       setError(error.response?.data?.message || 'Failed to load documents');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [accessToken]);
 
@@ -56,12 +89,11 @@ const OwnerDocuments = () => {
     fetchDocuments();
   }, [fetchDocuments]);
 
-  // ✅ ONLY Owner Identity Documents (No vehicle docs)
-  const ownerIdentityDocuments = [
-    { type: 'nid', label: 'Owner NID', icon: User, camera: false, desc: 'National ID card' },
-    { type: 'face_photo', label: 'Owner Face Photo', icon: Camera, camera: true, desc: 'Live camera capture' },
-    { type: 'driving_license', label: 'Owner Driving License', icon: User, camera: false, desc: 'Valid driving license' },
-  ];
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDocuments();
+    toast.success('Documents refreshed');
+  };
 
   const handleFileSelect = (docType, file) => {
     setPendingUploads((prev) => ({ ...prev, [docType]: file }));
@@ -84,7 +116,7 @@ const OwnerDocuments = () => {
     const pendingTypes = Object.keys(pendingUploads);
 
     if (pendingTypes.length === 0) {
-      alert('No new documents to submit. Upload documents first.');
+      toast.warning('No new documents to submit');
       return;
     }
 
@@ -111,11 +143,11 @@ const OwnerDocuments = () => {
         }
       }
 
-      alert(`${successCount} document(s) submitted for review!`);
+      toast.success(`${successCount} document(s) submitted for review!`);
       setPendingUploads({});
-      fetchDocuments();
+      await fetchDocuments();
     } catch (error) {
-      alert('Submission failed. Please try again.');
+      toast.error('Submission failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -123,12 +155,21 @@ const OwnerDocuments = () => {
 
   const getStatusConfig = (status) => {
     const configs = {
-      approved: { variant: 'success', icon: CheckCircle, label: 'Approved' },
-      pending: { variant: 'warning', icon: Clock, label: 'Under Review' },
-      rejected: { variant: 'danger', icon: XCircle, label: 'Rejected' },
+      approved: { variant: 'success', icon: CheckCircle, label: '✅ Approved' },
+      pending: { variant: 'warning', icon: Clock, label: '⏳ Under Review' },
+      rejected: { variant: 'danger', icon: XCircle, label: '❌ Rejected' },
     };
     return configs[status] || configs.pending;
   };
+
+  // ✅ Owner Identity Documents (5 documents)
+  const ownerIdentityDocuments = [
+    { type: 'nid_front', label: 'NID Front Side', icon: User, camera: false },
+    { type: 'nid_back', label: 'NID Back Side', icon: User, camera: false },
+    { type: 'driving_license_front', label: 'License Front Side', icon: User, camera: false },
+    { type: 'driving_license_back', label: 'License Back Side', icon: User, camera: false },
+    { type: 'face_photo', label: 'Live Face Photo', icon: Camera, camera: true },
+  ];
 
   const approvedCount = ownerIdentityDocuments.filter((doc) => 
     existingDocuments[doc.type]?.status === 'approved'
@@ -157,28 +198,55 @@ const OwnerDocuments = () => {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">Owner KYC Verification</h1>
-        <p className="text-slate-500">Verify your identity to list vehicles on UDrive</p>
+      {/* Header with Refresh */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">Owner KYC Verification</h1>
+          <p className="text-slate-500">Verify your identity to list vehicles on UDrive</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleRefresh}
+          isLoading={refreshing}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
-      {/* Status Card */}
-      <Card className={`mb-6 ${isFullyVerified ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+      {/* ✅ Status Card with Rejected Count */}
+      <Card className={`mb-6 ${isFullyVerified ? 'bg-green-50 border-green-200' : rejectedCount > 0 ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
         <div className="flex items-center gap-4 mb-3">
-          <Shield className={`w-8 h-8 shrink-0 ${isFullyVerified ? 'text-green-600' : 'text-blue-600'}`} />
+          <Shield className={`w-8 h-8 shrink-0 ${
+            isFullyVerified ? 'text-green-600' : 
+            rejectedCount > 0 ? 'text-red-600' : 
+            'text-blue-600'
+          }`} />
           <div className="flex-1">
-            <p className={`font-bold ${isFullyVerified ? 'text-green-800' : 'text-blue-800'}`}>
-              {isFullyVerified ? '✅ Identity Verified!' : `Verification: ${approvedCount}/${totalRequired}`}
+            <p className={`font-bold ${
+              isFullyVerified ? 'text-green-800' : 
+              rejectedCount > 0 ? 'text-red-800' : 
+              'text-blue-800'
+            }`}>
+              {isFullyVerified ? '✅ Identity Verified!' : 
+               rejectedCount > 0 ? '❌ Some Documents Rejected' :
+               `Verification: ${approvedCount}/${totalRequired}`}
             </p>
             <p className="text-sm text-slate-600">
-              {underReviewCount > 0 && `${underReviewCount} under review`}
+              {approvedCount > 0 && `${approvedCount} approved`}
+              {underReviewCount > 0 && ` • ${underReviewCount} under review`}
               {rejectedCount > 0 && ` • ${rejectedCount} rejected`}
               {pendingLocalCount > 0 && ` • ${pendingLocalCount} ready`}
             </p>
           </div>
         </div>
         <div className="w-full bg-slate-200 rounded-full h-2.5">
-          <div className={`h-2.5 rounded-full ${isFullyVerified ? 'bg-green-600' : 'bg-blue-600'}`} style={{ width: `${progressPercent}%` }} />
+          <div className={`h-2.5 rounded-full ${
+            isFullyVerified ? 'bg-green-600' : 
+            rejectedCount > 0 ? 'bg-red-600' : 
+            'bg-blue-600'
+          }`} style={{ width: `${progressPercent}%` }} />
         </div>
         <div className="flex gap-4 mt-3 text-xs">
           <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-green-600" /> {approvedCount} Approved</span>
@@ -187,7 +255,7 @@ const OwnerDocuments = () => {
         </div>
       </Card>
 
-      {/* Identity Documents Only */}
+      {/* Identity Documents */}
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Identity Documents</h2>
 
       <div className="space-y-3">
@@ -199,7 +267,9 @@ const OwnerDocuments = () => {
           const StatusIcon = statusConfig?.icon;
 
           return (
-            <Card key={doc.type} className="p-4">
+            <Card key={doc.type} className={`p-4 ${
+              existing?.status === 'rejected' ? 'border-red-300 bg-red-50' : ''
+            }`}>
               <div className="flex items-center gap-4">
                 <div className="w-11 h-11 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
                   <DocIcon className="w-5 h-5 text-slate-600" />
@@ -212,8 +282,14 @@ const OwnerDocuments = () => {
                       ? `Uploaded: ${formatDate(existing.created_at)}`
                       : pending
                         ? 'Ready to submit ✓'
-                        : doc.desc}
+                        : 'Not uploaded'}
                   </p>
+                  {/* ✅ Show Rejection Reason if rejected */}
+                  {existing?.status === 'rejected' && existing.rejection_reason && (
+                    <p className="text-xs text-red-600 mt-1">
+                      ⚠️ {existing.rejection_reason}
+                    </p>
+                  )}
                 </div>
 
                 {statusConfig ? (
@@ -222,10 +298,21 @@ const OwnerDocuments = () => {
                       {StatusIcon && <StatusIcon className="w-3 h-3 mr-1" />}
                       {statusConfig.label}
                     </Badge>
+                    {/* ✅ Re-upload button for rejected documents */}
                     {existing?.status === 'rejected' && (
                       <label className="block text-xs text-blue-600 hover:underline mt-1 cursor-pointer">
                         Re-upload
-                        <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={(e) => { if (e.target.files[0]) handleFileSelect(doc.type, e.target.files[0]); }} />
+                        <input 
+                          type="file" 
+                          accept=".jpg,.jpeg,.png,.pdf" 
+                          className="hidden" 
+                          onChange={(e) => { 
+                            if (e.target.files[0]) {
+                              handleFileSelect(doc.type, e.target.files[0]);
+                              toast.info(`${doc.label} ready for re-submission`);
+                            }
+                          }} 
+                        />
                       </label>
                     )}
                   </div>
@@ -241,7 +328,14 @@ const OwnerDocuments = () => {
                   </Button>
                 ) : (
                   <label className="cursor-pointer shrink-0">
-                    <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={(e) => { if (e.target.files[0]) handleFileSelect(doc.type, e.target.files[0]); }} />
+                    <input 
+                      type="file" 
+                      accept=".jpg,.jpeg,.png,.pdf" 
+                      className="hidden" 
+                      onChange={(e) => { 
+                        if (e.target.files[0]) handleFileSelect(doc.type, e.target.files[0]); 
+                      }} 
+                    />
                     <span className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
                       <Upload className="w-4 h-4" />
                       Upload
@@ -250,12 +344,21 @@ const OwnerDocuments = () => {
                 )}
               </div>
 
-              {existing?.status === 'rejected' && existing.rejection_reason && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-xs text-red-700 flex items-start gap-1">
-                    <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
-                    <span><strong>Rejection Reason:</strong> {existing.rejection_reason}</span>
-                  </p>
+              {/* ✅ Rejected document details */}
+              {existing?.status === 'rejected' && (
+                <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-red-700">Document Rejected</p>
+                      <p className="text-xs text-red-600">
+                        <strong>Reason:</strong> {existing.rejection_reason || 'No reason provided'}
+                      </p>
+                      <p className="text-xs text-red-500 mt-1">
+                        Please upload a new document for re-verification
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </Card>
@@ -271,16 +374,17 @@ const OwnerDocuments = () => {
         </Button>
       )}
 
-      {/* Notice */}
+      {/* ✅ Status Guide */}
       <Card className="mt-6 bg-blue-50 border-blue-200">
         <div className="flex items-start gap-3">
           <Shield className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
           <div>
-            <p className="font-medium text-blue-800 text-sm">Next Steps</p>
+            <p className="font-medium text-blue-800 text-sm">Document Status Guide</p>
             <ul className="mt-2 space-y-1 text-xs text-blue-600">
-              <li>• Vehicle documents (RC, Insurance) upload হয় Add Vehicle form-এ</li>
-              <li>• Identity verified হলে Add Vehicle unlock হবে</li>
-              <li>• Vehicle approval admin আলাদাভাবে করবে</li>
+              <li>✅ <span className="text-green-600">Approved</span> — Document verified</li>
+              <li>⏳ <span className="text-yellow-600">Under Review</span> — Admin is reviewing</li>
+              <li>❌ <span className="text-red-600">Rejected</span> — Click "Re-upload" to submit new document</li>
+              <li>📤 <span className="text-blue-600">Ready</span> — Document uploaded, ready to submit</li>
             </ul>
           </div>
         </div>
