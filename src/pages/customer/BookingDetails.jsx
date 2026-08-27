@@ -7,6 +7,11 @@ import {
   CreditCard,
   Shield,
   AlertCircle,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Info,
+  RefreshCw
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchBookingById, cancelBooking } from '../../features/bookings/bookingSlice';
@@ -17,6 +22,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { formatCurrency, formatDate, formatStatus } from '../../utils/formatters';
+import { toast } from 'react-toastify';
 
 const BookingDetails = () => {
   const { id } = useParams();
@@ -29,6 +35,8 @@ const BookingDetails = () => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   
   useEffect(() => {
     if (id) {
@@ -36,25 +44,39 @@ const BookingDetails = () => {
     }
   }, [dispatch, id]);
   
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await dispatch(fetchBookingById(id));
+    setRefreshing(false);
+    toast.success('Refreshed');
+  };
+  
   const handleCancel = async () => {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
-    
     setCancelLoading(true);
     setActionError('');
     
     try {
-      await dispatch(cancelBooking({ 
+      const result = await dispatch(cancelBooking({ 
         id, 
         reason: 'Cancelled by customer' 
       })).unwrap();
       
-      alert('Booking cancelled successfully');
+      // Check if refund info exists
+      if (result.refund) {
+        toast.success(
+          `Booking cancelled! Refund: ৳${result.refund.refundAmount.toLocaleString()} (${result.refund.refundPercent}%)`
+        );
+      } else {
+        toast.success('Booking cancelled successfully');
+      }
+      
+      setShowCancelModal(false);
       // Refresh booking data
       dispatch(fetchBookingById(id));
     } catch (error) {
       const message = typeof error === 'string' ? error : 'Cancellation failed';
       setActionError(message);
-      alert(message);
+      toast.error(message);
     } finally {
       setCancelLoading(false);
     }
@@ -72,12 +94,12 @@ const BookingDetails = () => {
         window.location.href = gatewayUrl;
       } else {
         setActionError('Payment gateway URL not found');
-        alert('Payment gateway URL not found');
+        toast.error('Payment gateway URL not found');
       }
     } catch (error) {
       const message = error.response?.data?.message || 'Payment initiation failed';
       setActionError(message);
-      alert(message);
+      toast.error(message);
     } finally {
       setPaymentLoading(false);
     }
@@ -120,18 +142,50 @@ const BookingDetails = () => {
     ? `${booking.brand} ${booking.year}` 
     : `${booking.brand} ${booking.model} ${booking.year}`;
   
+  // ✅ Check if booking is completed/cancelled/ongoing
+  const isCompleted = booking.status === 'completed';
+  const isCancelled = booking.status === 'cancelled';
+  const isOngoing = booking.status === 'ongoing';
+  const isPending = booking.status === 'pending_payment';
+  const isConfirmed = booking.status === 'confirmed';
+  const canCancel = booking.canCancel === true;
+  const refundInfo = booking.cancellationInfo;
+  
   const getStatusVariant = (status) => {
     const variants = {
       'pending_payment': 'warning',
       'confirmed': 'success',
-      'ongoing': 'primary',
-      'completed': 'default',
+      'ongoing': 'info',
+      'completed': 'success',
       'cancelled': 'danger',
-      'expired': 'default',
+      'expired': 'danger',
     };
     return variants[status] || 'default';
   };
   
+  // ✅ Get status message
+  const getStatusMessage = () => {
+    const now = new Date();
+    const pickup = new Date(booking.pickup_date);
+    
+    if (booking.status === 'completed') {
+      return { icon: <CheckCircle className="w-4 h-4" />, text: 'Rental completed', color: 'text-green-600' };
+    }
+    if (booking.status === 'ongoing') {
+      return { icon: <Clock className="w-4 h-4" />, text: 'Vehicle is currently rented', color: 'text-blue-600' };
+    }
+    if (booking.status === 'confirmed' && now < pickup) {
+      const days = Math.ceil((pickup - now) / (1000 * 60 * 60 * 24));
+      return { icon: <Calendar className="w-4 h-4" />, text: `Pickup in ${days} days`, color: 'text-blue-600' };
+    }
+    if (booking.status === 'cancelled') {
+      return { icon: <XCircle className="w-4 h-4" />, text: 'Booking cancelled', color: 'text-red-600' };
+    }
+    return null;
+  };
+
+  const statusMsg = getStatusMessage();
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Back */}
@@ -143,6 +197,31 @@ const BookingDetails = () => {
         Back to Bookings
       </button>
       
+      {/* Header */}
+      <div className="flex justify-between items-start mb-6 flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">Booking Details</h1>
+          <p className="text-sm text-slate-500">Booking ID: {booking.id?.slice(0, 8)}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleRefresh} isLoading={refreshing}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+          <Badge variant={getStatusVariant(booking.status)}>
+            {formatStatus(booking.status)}
+          </Badge>
+        </div>
+      </div>
+      
+      {/* Status Message */}
+      {statusMsg && (
+        <div className={`flex items-center gap-2 mb-4 ${statusMsg.color}`}>
+          {statusMsg.icon}
+          <span className="text-sm">{statusMsg.text}</span>
+        </div>
+      )}
+      
       {/* Action Error */}
       {actionError && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 mb-6">
@@ -150,17 +229,6 @@ const BookingDetails = () => {
           <p className="text-sm text-red-700">{actionError}</p>
         </div>
       )}
-      
-      {/* Header */}
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">Booking Details</h1>
-          <p className="text-sm text-slate-500">Booking ID: {booking.id?.slice(0, 8)}</p>
-        </div>
-        <Badge variant={getStatusVariant(booking.status)}>
-          {formatStatus(booking.status)}
-        </Badge>
-      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Main Info */}
@@ -201,11 +269,19 @@ const BookingDetails = () => {
               <div>
                 <p className="text-xs text-slate-500 mb-1">Pickup Date</p>
                 <p className="font-medium text-slate-900">{formatDate(booking.pickup_date)}</p>
+                <p className="text-xs text-slate-400">{booking.pickup_time || '10:00 AM'}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 mb-1">Return Date</p>
                 <p className="font-medium text-slate-900">{formatDate(booking.return_date)}</p>
+                <p className="text-xs text-slate-400">{booking.return_time || '10:00 AM'}</p>
               </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <p className="text-xs text-slate-500">Duration</p>
+              <p className="font-medium text-slate-900">
+                {Math.ceil((new Date(booking.return_date) - new Date(booking.pickup_date)) / (1000 * 60 * 60 * 24))} days
+              </p>
             </div>
           </Card>
           
@@ -226,18 +302,42 @@ const BookingDetails = () => {
               </div>
               <div className="border-t border-slate-100 pt-2 flex justify-between">
                 <span className="text-slate-900 font-semibold">Total</span>
-                <span className="text-xl font-bold text-slate-900">{formatCurrency(booking.total_amount)}</span>
+                <span className="text-xl font-bold text-blue-600">{formatCurrency(booking.total_amount)}</span>
               </div>
             </div>
           </Card>
+          
+          {/* ✅ Cancellation Info (for confirmed bookings) */}
+          {isConfirmed && refundInfo && (
+            <Card className="bg-blue-50 border-blue-200">
+              <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                <Info className="w-5 h-5 text-blue-600" />
+                Cancellation Policy
+              </h3>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Refund</span>
+                  <span className="font-bold text-green-600">{refundInfo.refundPercent}%</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Cancellation Fee</span>
+                  <span className="font-bold text-red-600">
+                    ৳{((Number(booking.rental_amount || booking.total_amount) * (100 - refundInfo.refundPercent)) / 100).toLocaleString()}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">{refundInfo.message}</p>
+              </div>
+            </Card>
+          )}
         </div>
         
-        {/* Actions */}
+        {/* Actions Sidebar */}
         <div className="space-y-4">
           <Card>
             <h3 className="font-semibold text-slate-900 mb-4">Actions</h3>
             
-            {booking.status === 'pending_payment' && (
+            {/* ✅ Pay Now (for pending_payment) */}
+            {isPending && (
               <Button
                 fullWidth
                 variant="primary"
@@ -248,19 +348,64 @@ const BookingDetails = () => {
               </Button>
             )}
             
-            {(booking.status === 'pending_payment' || booking.status === 'confirmed') && (
+            {/* ✅ Cancel Booking (only if canCancel = true) */}
+            {canCancel && (
               <Button
                 fullWidth
                 variant="danger"
-                onClick={handleCancel}
+                onClick={() => setShowCancelModal(true)}
                 isLoading={cancelLoading}
-                className="mt-2"
+                className={isPending ? 'mt-2' : ''}
               >
+                <XCircle className="w-4 h-4 mr-2" />
                 Cancel Booking
               </Button>
             )}
             
-            <Link to="/vehicles" className="block mt-2">
+            {/* ✅ Cancel not available message */}
+            {!canCancel && isConfirmed && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Cancellation not available
+                </p>
+              </div>
+            )}
+            
+            {/* ✅ Completed Booking */}
+            {isCompleted && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-700 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Rental completed
+                </p>
+              </div>
+            )}
+            
+            {/* ✅ Ongoing Booking */}
+            {isOngoing && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700 flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Rental active
+                </p>
+              </div>
+            )}
+            
+            {/* ✅ Cancelled Booking */}
+            {isCancelled && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700 flex items-center gap-2">
+                  <XCircle className="w-4 h-4" />
+                  Booking cancelled
+                </p>
+                {booking.cancel_reason && (
+                  <p className="text-xs text-red-500 mt-1">Reason: {booking.cancel_reason}</p>
+                )}
+              </div>
+            )}
+            
+            <Link to="/vehicles" className="block mt-3">
               <Button fullWidth variant="outline">
                 Browse More Cars
               </Button>
@@ -278,6 +423,66 @@ const BookingDetails = () => {
           </Card>
         </div>
       </div>
+      
+      {/* ✅ Cancel Confirmation Modal with Refund Details */}
+      {showCancelModal && refundInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCancelModal(false)} />
+          <div className="relative bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Cancel Booking?</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Pickup on {formatDate(booking.pickup_date)}
+            </p>
+            
+            <div className="space-y-2 p-3 bg-slate-50 rounded-lg mb-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Total Paid</span>
+                <span>{formatCurrency(booking.total_amount)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Refund Amount</span>
+                <span className="text-green-600 font-medium">
+                  {formatCurrency(refundInfo.refundPercent === 100 ? booking.total_amount : 
+                    (Number(booking.rental_amount || booking.total_amount) * refundInfo.refundPercent / 100 + Number(booking.deposit_amount_snapshot || 0)))}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Cancellation Fee</span>
+                <span className="text-red-600 font-medium">
+                  {formatCurrency(Number(booking.rental_amount || booking.total_amount) * (100 - refundInfo.refundPercent) / 100)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                <span className="text-slate-900 font-medium">Refund Policy</span>
+                <span className="text-blue-600 font-medium">{refundInfo.refundPercent}%</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 mb-4">
+              ⏱ {refundInfo.message}
+            </p>
+
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                fullWidth 
+                onClick={() => setShowCancelModal(false)}
+              >
+                Keep Booking
+              </Button>
+              <Button 
+                variant="danger" 
+                fullWidth 
+                onClick={handleCancel}
+                isLoading={cancelLoading}
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                Confirm Cancellation
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -80,7 +80,11 @@ const BookingConfirm = () => {
         return;
       }
 
+      // ✅ Clear old expired booking ID and set new one
+      localStorage.removeItem('currentBookingId');
+      localStorage.removeItem('currentTotalAmount');
       localStorage.setItem('currentBookingId', bookingId);
+      localStorage.setItem('currentTotalAmount', totalAmount);
 
       navigate('/booking/payment', {
         state: {
@@ -94,7 +98,6 @@ const BookingConfirm = () => {
     } catch (error) {
       console.error('❌ Error:', error);
       
-      // ✅ Proper error message extraction
       let errorMessage = 'Failed to create booking';
       
       if (error.response) {
@@ -114,10 +117,7 @@ const BookingConfirm = () => {
         errorMessage = error.message || 'Failed to create booking';
       }
       
-      // ✅ Show toast
       toast.error(errorMessage);
-      
-      // ✅ Show in UI
       setApiError(errorMessage);
       setIsLoading(false);
     }

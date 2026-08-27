@@ -6,6 +6,7 @@ import {
   TrendingUp,
   TrendingDown,
   RotateCcw,
+  Eye
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import Card from '../../components/ui/Card';
@@ -16,7 +17,7 @@ import ErrorState from '../../components/ui/ErrorState';
 import EmptyState from '../../components/ui/EmptyState';
 import PageHeader from '../../components/admin/PageHeader';
 import StatusBadge from '../../components/admin/StatusBadge';
-import api from '../../services/api';
+import paymentService from '../../services/paymentService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const CustomerPayments = () => {
@@ -34,10 +35,11 @@ const CustomerPayments = () => {
     setError(null);
     
     try {
-      const response = await api.get('/payments/my');
-      setPayments(response.data.data || []);
+      // ✅ Use paymentService
+      const response = await paymentService.getMyPayments();
+      setPayments(response.data || []);
     } catch (error) {
-      // If endpoint doesn't exist, show empty
+      console.error('Failed to fetch payments:', error);
       setPayments([]);
     } finally {
       setLoading(false);
@@ -56,6 +58,7 @@ const CustomerPayments = () => {
   if (loading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
   
   const totalPaid = payments.filter((p) => p.status === 'paid').reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalRefunded = payments.filter((p) => p.status === 'refunded').reduce((sum, p) => sum + Number(p.amount || 0), 0);
   
   return (
     <div>
@@ -76,9 +79,7 @@ const CustomerPayments = () => {
         <Card className="p-3 text-center">
           <RotateCcw className="w-5 h-5 text-yellow-600 mx-auto mb-1" />
           <p className="text-[10px] text-slate-500 uppercase">Refunds</p>
-          <p className="text-lg font-bold text-yellow-700">
-            {formatCurrency(payments.filter((p) => p.status === 'refunded').reduce((sum, p) => sum + Number(p.amount || 0), 0))}
-          </p>
+          <p className="text-lg font-bold text-yellow-700">{formatCurrency(totalRefunded)}</p>
         </Card>
       </div>
       
@@ -105,6 +106,7 @@ const CustomerPayments = () => {
               <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Amount</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -114,6 +116,11 @@ const CustomerPayments = () => {
                 <td className="px-4 py-3 text-sm font-medium">{formatCurrency(payment.amount)}</td>
                 <td className="px-4 py-3"><StatusBadge status={payment.status} size="sm" /></td>
                 <td className="px-4 py-3 text-xs text-slate-500">{formatDate(payment.created_at)}</td>
+                <td className="px-4 py-3 text-right">
+                  <Link to={`/bookings/${payment.booking_id}`} className="text-blue-600 hover:underline text-xs flex items-center justify-end gap-1">
+                    <Eye className="w-3 h-3" /> View
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>
