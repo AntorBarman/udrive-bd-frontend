@@ -1,6 +1,9 @@
+// frontend/src/components/booking/BookingPanel.jsx
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Lock, CreditCard, AlertCircle } from 'lucide-react';
+import { Shield, Lock, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
+import { useSelector } from 'react-redux';
 import Button from '../ui/Button';
 import DateSelector from './DateSelector';
 import PriceBreakdown from '../vehicle/PriceBreakdown';
@@ -9,6 +12,7 @@ import { toast } from 'react-toastify';
 
 const BookingPanel = ({ vehicle }) => {
   const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
 
   const [pickupDate, setPickupDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
@@ -18,6 +22,8 @@ const BookingPanel = ({ vehicle }) => {
   const [availabilityMessage, setAvailabilityMessage] = useState('');
   const [compliance, setCompliance] = useState(null);
   const [isComplianceLoading, setIsComplianceLoading] = useState(true);
+  const [kycStatus, setKycStatus] = useState(null);
+  const [checkingKYC, setCheckingKYC] = useState(false);
 
   const dailyRate = Number(vehicle.daily_rate) || 0;
   const depositAmount = Number(vehicle.deposit_amount) || 0;
@@ -26,6 +32,13 @@ const BookingPanel = ({ vehicle }) => {
   useEffect(() => {
     checkCompliance();
   }, [vehicle.id]);
+
+  // ✅ Check KYC status
+  useEffect(() => {
+    if (user?.id) {
+      checkKYCStatus();
+    }
+  }, [user]);
 
   // ✅ Check availability whenever dates change
   useEffect(() => {
@@ -36,6 +49,73 @@ const BookingPanel = ({ vehicle }) => {
       setAvailabilityMessage('');
     }
   }, [pickupDate, returnDate]);
+
+  const checkKYCStatus = async () => {
+    setCheckingKYC(true);
+    try {
+      const response = await api.get('/users/kyc-status');
+      setKycStatus(response.data.data);
+    } catch (error) {
+      console.error('Failed to check KYC:', error);
+    } finally {
+      setCheckingKYC(false);
+    }
+  };
+
+  const checkCompliance = async () => {
+    setIsComplianceLoading(true);
+    try {
+      const response = await api.get(`/vehicles/${vehicle.id}/compliance`);
+      setCompliance(response.data.data);
+      
+      if (!response.data.data.eligible) {
+        toast.warning(`Vehicle not available: ${response.data.data.notes.join(', ')}`);
+      }
+    } catch (error) {
+      console.error('Compliance check failed:', error);
+    } finally {
+      setIsComplianceLoading(false);
+    }
+  };
+
+  const checkAvailability = async () => {
+    if (!pickupDate || !returnDate) return;
+    
+    if (new Date(pickupDate) >= new Date(returnDate)) {
+      setIsAvailable(false);
+      setAvailabilityMessage('Return date must be after pickup date');
+      return;
+    }
+
+    setIsLoading(true);
+    setIsAvailable(null);
+
+    try {
+      const response = await api.get('/vehicles/check-availability', {
+        params: {
+          vehicleId: vehicle.id,
+          pickupDate: pickupDate,
+          returnDate: returnDate
+        }
+      });
+
+      const available = response.data.data.available;
+      setIsAvailable(available);
+
+      if (available) {
+        setAvailabilityMessage('✅ This vehicle is available for your selected dates');
+      } else {
+        setAvailabilityMessage('❌ This vehicle is not available for the selected dates. Please choose different dates.');
+      }
+
+    } catch (error) {
+      console.error('Availability check failed:', error);
+      setIsAvailable(false);
+      setAvailabilityMessage('⚠️ Could not check availability. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const calculateDays = () => {
     if (!pickupDate || !returnDate) return 0;
@@ -50,86 +130,20 @@ const BookingPanel = ({ vehicle }) => {
   const rentalAmount = days * dailyRate;
   const totalAmount = rentalAmount + depositAmount;
 
-  // ✅ COMPLIANCE CHECK - Real
-  const checkCompliance = async () => {
-    setIsComplianceLoading(true);
-    try {
-      console.log('🔍 Checking compliance for vehicle:', vehicle.id);
-      const response = await api.get(`/vehicles/${vehicle.id}/compliance`);
-      console.log('✅ Compliance response:', response.data);
-      
-      setCompliance(response.data.data);
-      
-      // If not eligible, show warning
-      if (!response.data.data.eligible) {
-        toast.warning(`Vehicle not available: ${response.data.data.notes.join(', ')}`);
-      }
-    } catch (error) {
-      console.error('❌ Compliance check failed:', error);
-      // Don't block booking if compliance check fails (fallback)
-    } finally {
-      setIsComplianceLoading(false);
-    }
-  };
-
-  // ✅ REAL AVAILABILITY CHECK
-  const checkAvailability = async () => {
-    if (!pickupDate || !returnDate) return;
+  const handleReserve = () => {
+    console.log('🔍 Reserve clicked:', { pickupDate, returnDate, days, vehicleId: vehicle.id });
     
-    if (new Date(pickupDate) >= new Date(returnDate)) {
-      setIsAvailable(false);
-      setAvailabilityMessage('Return date must be after pickup date');
+    if (!user) {
+      toast.warning('Please login to book this vehicle');
+      navigate('/login', { state: { from: `/vehicles/${vehicle.id}` } });
       return;
     }
-
-    setIsLoading(true);
-    setIsAvailable(null);
-
-    try {
-      console.log('🔍 Checking availability:', {
-        vehicleId: vehicle.id,
-        pickupDate,
-        returnDate
-      });
-
-      const response = await api.get('/vehicles/check-availability', {
-        params: {
-          vehicleId: vehicle.id,
-          pickupDate: pickupDate,
-          returnDate: returnDate
-        }
-      });
-
-      console.log('✅ Availability response:', response.data);
-
-      const available = response.data.data.available;
-      setIsAvailable(available);
-
-      if (available) {
-        setAvailabilityMessage('✅ This vehicle is available for your selected dates');
-      } else {
-        setAvailabilityMessage('❌ This vehicle is not available for the selected dates. Please choose different dates.');
-      }
-
-    } catch (error) {
-      console.error('❌ Availability check failed:', error);
-      setIsAvailable(false);
-      setAvailabilityMessage('⚠️ Could not check availability. Please try again.');
-      toast.error('Failed to check availability');
-    } finally {
-      setIsLoading(false);
+    
+    if (!kycStatus?.isKYCVerified) {
+      toast.error('Please complete your KYC verification before booking');
+      navigate('/kyc');
+      return;
     }
-  };
-
-  const handleReserve = () => {
-    console.log('🔍 Reserve clicked:', { 
-      pickupDate, 
-      returnDate, 
-      days,
-      vehicleId: vehicle.id,
-      isAvailable,
-      compliance
-    });
     
     if (!pickupDate) {
       setError('Please select pickup date');
@@ -146,14 +160,11 @@ const BookingPanel = ({ vehicle }) => {
       return;
     }
 
-    // ✅ Check compliance first
     if (compliance && !compliance.eligible) {
-      setError(`This vehicle is not available for booking: ${compliance.notes.join(', ')}`);
-      toast.error(`Vehicle blocked: ${compliance.notes.join(', ')}`);
+      setError(`This vehicle is not available: ${compliance.notes.join(', ')}`);
       return;
     }
 
-    // ✅ Check availability
     if (isAvailable === false) {
       setError('This vehicle is not available for the selected dates. Please choose different dates.');
       return;
@@ -192,18 +203,20 @@ const BookingPanel = ({ vehicle }) => {
     });
   };
 
-  // ✅ Check if vehicle can be reserved
   const canReserve = () => {
     if (isComplianceLoading) return false;
     if (compliance && !compliance.eligible) return false;
     if (isAvailable === false) return false;
     if (isLoading) return false;
     if (!pickupDate || !returnDate) return false;
+    if (user && kycStatus && !kycStatus.isKYCVerified) return false;
     return true;
   };
 
-  // ✅ Get button text
   const getButtonText = () => {
+    if (!user) return 'Login to Book';
+    if (checkingKYC) return 'Checking KYC...';
+    if (kycStatus && !kycStatus.isKYCVerified) return 'Complete KYC to Book';
     if (isComplianceLoading) return 'Checking...';
     if (compliance && !compliance.eligible) return 'Not Available';
     if (isLoading) return 'Checking...';
@@ -221,6 +234,25 @@ const BookingPanel = ({ vehicle }) => {
         <span className="text-slate-500"> / day</span>
       </div>
 
+      {/* KYC Status */}
+      {user && (
+        <div className="mb-3">
+          {checkingKYC ? (
+            <div className="text-sm text-slate-500">Checking KYC status...</div>
+          ) : kycStatus?.isKYCVerified ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-2 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              <span className="text-sm text-green-700">KYC Verified</span>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-yellow-600" />
+              <span className="text-sm text-yellow-700">KYC Required to Book</span>
+            </div>
+          )}
+        </div>
+      )}
+
       <DateSelector
         pickupDate={pickupDate}
         returnDate={returnDate}
@@ -229,7 +261,7 @@ const BookingPanel = ({ vehicle }) => {
         error={error}
       />
 
-      {/* ✅ Compliance Status Display */}
+      {/* Compliance Status */}
       {!isComplianceLoading && compliance && !compliance.eligible && (
         <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           <div className="flex items-center gap-2">
@@ -239,7 +271,7 @@ const BookingPanel = ({ vehicle }) => {
         </div>
       )}
 
-      {/* ✅ Availability Status Display */}
+      {/* Availability Status */}
       {pickupDate && returnDate && isAvailable !== null && (
         <div className={`mt-3 p-3 rounded-lg text-sm ${
           isLoading ? 'bg-yellow-50 text-yellow-700' :

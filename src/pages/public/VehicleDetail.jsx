@@ -1,3 +1,4 @@
+// frontend/src/pages/VehicleDetail.jsx (UPDATED)
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -7,6 +8,8 @@ import {
   CheckCircle,
   ChevronLeft,
   Car,
+  Star,
+  MessageSquare,
 } from 'lucide-react';
 import { fetchVehicleById } from '../../features/vehicles/vehicleSlice';
 import VehicleGallery from '../../components/vehicle/VehicleGallery';
@@ -16,12 +19,16 @@ import BookingPanel from '../../components/booking/BookingPanel';
 import Badge from '../../components/ui/Badge';
 import Skeleton from '../../components/ui/Skeleton';
 import ErrorState from '../../components/ui/ErrorState';
+// ✅ Add these imports
+import RatingSummary from '../../components/reviews/RatingSummary';
+import ReviewsList from '../../components/reviews/ReviewsList';
 
 const VehicleDetail = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
   const { currentVehicle, isLoading, error } = useSelector((state) => state.vehicles);
   const [mainImgError, setMainImgError] = useState(false);
+  const [showReviews, setShowReviews] = useState(true);
   
   useEffect(() => {
     if (id) {
@@ -73,13 +80,6 @@ const VehicleDetail = () => {
   const images = vehicle.images || [];
   const primaryImage = vehicle.primary_image || images[0]?.image_url;
   
-  console.log('🔍 Vehicle data:', {
-    id: vehicle.id,
-    brand: vehicle.brand,
-    images_count: images.length,
-    primary_image: primaryImage,
-  });
-  
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Breadcrumb */}
@@ -105,12 +105,9 @@ const VehicleDetail = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-4">
-          {Number(vehicle.average_rating) > 0 && (
-            <VehicleRating 
-              rating={Number(vehicle.average_rating)} 
-              reviewCount={vehicle.total_bookings || 0} 
-            />
-          )}
+          {/* ✅ Add RatingSummary here */}
+          <RatingSummary vehicleId={vehicle.id} compact />
+          
           {vehicle.branch_name && (
             <span className="flex items-center gap-1 text-sm text-slate-500">
               <MapPin className="w-4 h-4" />
@@ -178,6 +175,20 @@ const VehicleDetail = () => {
                 {vehicle.fuel_type}
               </div>
             </div>
+          </div>
+          
+          {/* ✅ Reviews Section */}
+          <div className="border-t border-slate-200 pt-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Customer Reviews
+                </h2>
+                <RatingSummary vehicleId={vehicle.id} />
+              </div>
+            </div>
+            <ReviewsList vehicleId={vehicle.id} />
           </div>
         </div>
         

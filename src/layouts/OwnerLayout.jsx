@@ -10,7 +10,7 @@ import {
   Shield,
   LogOut,
   Menu,
-  Bell,
+  Bell,           // ✅ ADDED
   ChevronDown,
   User,
   Settings,
@@ -23,6 +23,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../features/auth/authSlice';
 import Badge from '../components/ui/Badge';
 import api from '../services/api';
+import NotificationBell from '../components/NotificationBell';
 
 const OwnerLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -112,7 +113,7 @@ const OwnerLayout = ({ children }) => {
     navigate('/login');
   };
   
-  // ✅ Avatar Component
+  // Avatar Component
   const UserAvatar = ({ size = 'sm' }) => {
     const sizeClasses = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
     
@@ -238,9 +239,8 @@ const OwnerLayout = ({ children }) => {
             </div>
             
             <div className="flex items-center gap-1 shrink-0">
-              <button className="p-2 hover:bg-slate-100 rounded-lg relative">
-                <Bell className="w-4 h-4 text-slate-600" />
-              </button>
+              {/* ✅ Notification Bell */}
+              <NotificationBell />
               
               <div className="relative" ref={userMenuRef}>
                 <button
@@ -253,7 +253,6 @@ const OwnerLayout = ({ children }) => {
                 
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-1 w-60 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
-                    {/* User Info with Avatar */}
                     <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-2.5">
                       <UserAvatar size="md" />
                       <div className="flex-1 min-w-0">

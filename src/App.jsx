@@ -70,6 +70,15 @@ import BecomeOwner from './pages/public/BecomeOwner';
 import HowItWorks from './pages/public/HowItWorks';
 import About from './pages/public/About';
 import RequireAuth from './components/RequireAuth';
+import Notifications from './pages/Notifications';
+import NotificationBell from './components/NotificationBell';
+
+import VerifyEmail from './pages/auth/VerifyEmail';
+import KYCPage from './pages/KYCPage';
+
+
+
+
 
 
 
@@ -91,6 +100,7 @@ function App() {
         {/* ============ AUTH ROUTES ============ */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* ============ BOOKING FLOW ============ */}
         <Route path="/booking/confirm" element={<BookingConfirm />} />
@@ -313,6 +323,13 @@ function App() {
             <AdminDocuments />
           </RequireAuth>
         } />
+        <Route path="/notifications" element={
+          <RequireAuth>
+            <Notifications />
+          </RequireAuth>
+        } />
+        
+        <Route path="/kyc" element={<KYCPage />} />
       </Routes>
     </Router>
   );

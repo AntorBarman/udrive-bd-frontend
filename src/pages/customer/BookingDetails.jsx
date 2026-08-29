@@ -1,3 +1,5 @@
+// frontend/src/pages/customer/BookingDetails.jsx (UPDATED with Review)
+
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
@@ -11,16 +13,20 @@ import {
   XCircle,
   Clock,
   Info,
-  RefreshCw
+  RefreshCw,
+  Star,
+  MessageSquare
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchBookingById, cancelBooking } from '../../features/bookings/bookingSlice';
 import paymentService from '../../services/paymentService';
+import reviewService from '../../services/reviewService';
 import Spinner from '../../components/ui/Spinner';
 import ErrorState from '../../components/ui/ErrorState';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
+import ReviewForm from '../../components/reviews/ReviewForm';
 import { formatCurrency, formatDate, formatStatus } from '../../utils/formatters';
 import { toast } from 'react-toastify';
 
@@ -38,15 +44,44 @@ const BookingDetails = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   
+  // ✅ Review states
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [canReview, setCanReview] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  
   useEffect(() => {
     if (id) {
       dispatch(fetchBookingById(id));
+      checkReviewEligibility(id);
     }
   }, [dispatch, id]);
+  
+  // ✅ Check if user can review this booking
+  const checkReviewEligibility = async (bookingId) => {
+    try {
+      const result = await reviewService.checkCanReview(bookingId);
+      console.log('🔍 Review eligibility:', result.data);
+      setCanReview(result.data?.canReview || false);
+      
+      if (result.data?.reason === 'You have already reviewed this booking') {
+        setReviewSubmitted(true);
+      }
+    } catch (error) {
+      console.error('Failed to check review eligibility:', error);
+      setCanReview(false);
+    }
+  };
+  
+  const handleReviewSuccess = () => {
+    setReviewSubmitted(true);
+    setShowReviewForm(false);
+    toast.success('Thank you for your review!');
+  };
   
   const handleRefresh = async () => {
     setRefreshing(true);
     await dispatch(fetchBookingById(id));
+    checkReviewEligibility(id);
     setRefreshing(false);
     toast.success('Refreshed');
   };
@@ -61,7 +96,6 @@ const BookingDetails = () => {
         reason: 'Cancelled by customer' 
       })).unwrap();
       
-      // Check if refund info exists
       if (result.refund) {
         toast.success(
           `Booking cancelled! Refund: ৳${result.refund.refundAmount.toLocaleString()} (${result.refund.refundPercent}%)`
@@ -71,7 +105,6 @@ const BookingDetails = () => {
       }
       
       setShowCancelModal(false);
-      // Refresh booking data
       dispatch(fetchBookingById(id));
     } catch (error) {
       const message = typeof error === 'string' ? error : 'Cancellation failed';
@@ -142,7 +175,6 @@ const BookingDetails = () => {
     ? `${booking.brand} ${booking.year}` 
     : `${booking.brand} ${booking.model} ${booking.year}`;
   
-  // ✅ Check if booking is completed/cancelled/ongoing
   const isCompleted = booking.status === 'completed';
   const isCancelled = booking.status === 'cancelled';
   const isOngoing = booking.status === 'ongoing';
@@ -163,29 +195,6 @@ const BookingDetails = () => {
     return variants[status] || 'default';
   };
   
-  // ✅ Get status message
-  const getStatusMessage = () => {
-    const now = new Date();
-    const pickup = new Date(booking.pickup_date);
-    
-    if (booking.status === 'completed') {
-      return { icon: <CheckCircle className="w-4 h-4" />, text: 'Rental completed', color: 'text-green-600' };
-    }
-    if (booking.status === 'ongoing') {
-      return { icon: <Clock className="w-4 h-4" />, text: 'Vehicle is currently rented', color: 'text-blue-600' };
-    }
-    if (booking.status === 'confirmed' && now < pickup) {
-      const days = Math.ceil((pickup - now) / (1000 * 60 * 60 * 24));
-      return { icon: <Calendar className="w-4 h-4" />, text: `Pickup in ${days} days`, color: 'text-blue-600' };
-    }
-    if (booking.status === 'cancelled') {
-      return { icon: <XCircle className="w-4 h-4" />, text: 'Booking cancelled', color: 'text-red-600' };
-    }
-    return null;
-  };
-
-  const statusMsg = getStatusMessage();
-
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Back */}
@@ -213,14 +222,6 @@ const BookingDetails = () => {
           </Badge>
         </div>
       </div>
-      
-      {/* Status Message */}
-      {statusMsg && (
-        <div className={`flex items-center gap-2 mb-4 ${statusMsg.color}`}>
-          {statusMsg.icon}
-          <span className="text-sm">{statusMsg.text}</span>
-        </div>
-      )}
       
       {/* Action Error */}
       {actionError && (
@@ -269,21 +270,55 @@ const BookingDetails = () => {
               <div>
                 <p className="text-xs text-slate-500 mb-1">Pickup Date</p>
                 <p className="font-medium text-slate-900">{formatDate(booking.pickup_date)}</p>
-                <p className="text-xs text-slate-400">{booking.pickup_time || '10:00 AM'}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 mb-1">Return Date</p>
                 <p className="font-medium text-slate-900">{formatDate(booking.return_date)}</p>
-                <p className="text-xs text-slate-400">{booking.return_time || '10:00 AM'}</p>
               </div>
             </div>
-            <div className="mt-3 pt-3 border-t border-slate-100">
-              <p className="text-xs text-slate-500">Duration</p>
-              <p className="font-medium text-slate-900">
-                {Math.ceil((new Date(booking.return_date) - new Date(booking.pickup_date)) / (1000 * 60 * 60 * 24))} days
-              </p>
-            </div>
           </Card>
+          
+          {/* ✅ REVIEW SECTION - ADDED HERE */}
+          {isCompleted && (
+            <Card className="p-6">
+              <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <Star className="w-5 h-5 text-yellow-400" />
+                Review Your Experience
+              </h3>
+              
+              {reviewSubmitted ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
+                  <h4 className="text-lg font-semibold text-slate-900 mb-2">
+                    Review Submitted!
+                  </h4>
+                  <p className="text-slate-500">
+                    Thank you for sharing your experience.
+                  </p>
+                </div>
+              ) : canReview && !showReviewForm ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+                  <h4 className="text-lg font-semibold text-slate-900 mb-2">
+                    How was your experience?
+                  </h4>
+                  <p className="text-slate-500 mb-6">
+                    Share your feedback about the vehicle and service
+                  </p>
+                  <Button onClick={() => setShowReviewForm(true)}>
+                    <Star className="w-4 h-4 mr-2" />
+                    Write a Review
+                  </Button>
+                </div>
+              ) : showReviewForm ? (
+                <ReviewForm
+                  bookingId={booking.id}
+                  onSuccess={handleReviewSuccess}
+                  onCancel={() => setShowReviewForm(false)}
+                />
+              ) : null}
+            </Card>
+          )}
           
           {/* Price */}
           <Card>
@@ -306,29 +341,6 @@ const BookingDetails = () => {
               </div>
             </div>
           </Card>
-          
-          {/* ✅ Cancellation Info (for confirmed bookings) */}
-          {isConfirmed && refundInfo && (
-            <Card className="bg-blue-50 border-blue-200">
-              <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <Info className="w-5 h-5 text-blue-600" />
-                Cancellation Policy
-              </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Refund</span>
-                  <span className="font-bold text-green-600">{refundInfo.refundPercent}%</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Cancellation Fee</span>
-                  <span className="font-bold text-red-600">
-                    ৳{((Number(booking.rental_amount || booking.total_amount) * (100 - refundInfo.refundPercent)) / 100).toLocaleString()}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">{refundInfo.message}</p>
-              </div>
-            </Card>
-          )}
         </div>
         
         {/* Actions Sidebar */}
@@ -336,7 +348,6 @@ const BookingDetails = () => {
           <Card>
             <h3 className="font-semibold text-slate-900 mb-4">Actions</h3>
             
-            {/* ✅ Pay Now (for pending_payment) */}
             {isPending && (
               <Button
                 fullWidth
@@ -348,7 +359,6 @@ const BookingDetails = () => {
               </Button>
             )}
             
-            {/* ✅ Cancel Booking (only if canCancel = true) */}
             {canCancel && (
               <Button
                 fullWidth
@@ -362,46 +372,12 @@ const BookingDetails = () => {
               </Button>
             )}
             
-            {/* ✅ Cancel not available message */}
-            {!canCancel && isConfirmed && (
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-700 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  Cancellation not available
-                </p>
-              </div>
-            )}
-            
-            {/* ✅ Completed Booking */}
             {isCompleted && (
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-sm text-green-700 flex items-center gap-2">
                   <CheckCircle className="w-4 h-4" />
                   Rental completed
                 </p>
-              </div>
-            )}
-            
-            {/* ✅ Ongoing Booking */}
-            {isOngoing && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-700 flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  Rental active
-                </p>
-              </div>
-            )}
-            
-            {/* ✅ Cancelled Booking */}
-            {isCancelled && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700 flex items-center gap-2">
-                  <XCircle className="w-4 h-4" />
-                  Booking cancelled
-                </p>
-                {booking.cancel_reason && (
-                  <p className="text-xs text-red-500 mt-1">Reason: {booking.cancel_reason}</p>
-                )}
               </div>
             )}
             
@@ -417,14 +393,11 @@ const BookingDetails = () => {
               <Shield className="w-5 h-5 text-green-600" />
               <p className="text-sm font-medium text-green-800">Secure Booking</p>
             </div>
-            <p className="text-xs text-green-600 mt-1">
-              Payment protected with SSLCommerz
-            </p>
           </Card>
         </div>
       </div>
       
-      {/* ✅ Cancel Confirmation Modal with Refund Details */}
+      {/* Cancel Modal */}
       {showCancelModal && refundInfo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowCancelModal(false)} />
@@ -436,31 +409,11 @@ const BookingDetails = () => {
             
             <div className="space-y-2 p-3 bg-slate-50 rounded-lg mb-4">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Total Paid</span>
-                <span>{formatCurrency(booking.total_amount)}</span>
+                <span className="text-slate-600">Refund</span>
+                <span className="text-green-600 font-medium">{refundInfo.refundPercent}%</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Refund Amount</span>
-                <span className="text-green-600 font-medium">
-                  {formatCurrency(refundInfo.refundPercent === 100 ? booking.total_amount : 
-                    (Number(booking.rental_amount || booking.total_amount) * refundInfo.refundPercent / 100 + Number(booking.deposit_amount_snapshot || 0)))}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Cancellation Fee</span>
-                <span className="text-red-600 font-medium">
-                  {formatCurrency(Number(booking.rental_amount || booking.total_amount) * (100 - refundInfo.refundPercent) / 100)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
-                <span className="text-slate-900 font-medium">Refund Policy</span>
-                <span className="text-blue-600 font-medium">{refundInfo.refundPercent}%</span>
-              </div>
+              <p className="text-xs text-slate-500 mt-1">{refundInfo.message}</p>
             </div>
-
-            <p className="text-xs text-slate-500 mb-4">
-              ⏱ {refundInfo.message}
-            </p>
 
             <div className="flex gap-3">
               <Button 
@@ -476,7 +429,6 @@ const BookingDetails = () => {
                 onClick={handleCancel}
                 isLoading={cancelLoading}
               >
-                <XCircle className="w-4 h-4 mr-2" />
                 Confirm Cancellation
               </Button>
             </div>

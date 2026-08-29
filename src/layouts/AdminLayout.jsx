@@ -7,16 +7,13 @@ import {
   Wallet,
   Users,
   Shield,
-  TrendingUp,
   LogOut,
   Menu,
-  Bell,
   ChevronDown,
   User,
   Settings,
   Search,
   Activity,
-  FileText,
   ChevronLeft,
   ChevronRight,
   BarChart3,
@@ -31,6 +28,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../features/auth/authSlice';
 import Badge from '../components/ui/Badge';
+import NotificationBell from '../components/NotificationBell'; // ✅ Import
 
 const AdminLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -109,7 +107,7 @@ const AdminLayout = ({ children }) => {
     navigate('/login');
   };
   
-  // ✅ Avatar Component
+  // Avatar Component
   const UserAvatar = ({ size = 'sm' }) => {
     const sizeClasses = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
     
@@ -253,9 +251,8 @@ const AdminLayout = ({ children }) => {
             
             {/* Right */}
             <div className="flex items-center gap-1 shrink-0">
-              <button className="p-2 hover:bg-slate-100 rounded-lg relative">
-                <Bell className="w-4 h-4 text-slate-600" />
-              </button>
+              {/* ✅ Notification Bell */}
+              <NotificationBell />
               
               <div className="relative" ref={userMenuRef}>
                 <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-1.5 hover:bg-slate-100 rounded-lg px-2 py-1.5">
@@ -265,7 +262,6 @@ const AdminLayout = ({ children }) => {
                 
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-1 w-60 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
-                    {/* User Info with Avatar */}
                     <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-2.5">
                       <UserAvatar size="md" />
                       <div className="flex-1 min-w-0">

@@ -1,16 +1,20 @@
+// frontend/src/pages/BookingPayment.jsx (UPDATED)
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Lock, Shield, CreditCard, CheckCircle, AlertCircle } from 'lucide-react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Lock, Shield, AlertCircle, RefreshCw } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import BookingStepper from '../../components/booking/BookingStepper';
 import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
 import { bookingSteps } from '../../mocks/booking';
 import paymentService from '../../services/paymentService';
+import bookingService from '../../services/bookingService';
 import { toast } from 'react-toastify';
 
 const BookingPayment = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useSelector((state) => state.auth);
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -18,61 +22,101 @@ const BookingPayment = () => {
   const [bookingId, setBookingId] = useState(null);
   const [totalAmount, setTotalAmount] = useState(0);
   const [bookingData, setBookingData] = useState(null);
+  const [isExpired, setIsExpired] = useState(false);
 
-  // ✅ Get booking data from multiple sources
   useEffect(() => {
-    // 1. From location state
-    const stateData = location.state || {};
-    
-    // 2. From localStorage (fallback)
-    const storedBookingId = localStorage.getItem('currentBookingId');
-    const storedTotal = localStorage.getItem('currentTotalAmount');
-    
-    // 3. From URL params
-    const params = new URLSearchParams(location.search);
-    const urlBookingId = params.get('booking_id');
-    
-    // Determine booking ID (priority: state > URL > localStorage)
-    const finalBookingId = stateData.bookingId || 
-                          stateData.booking?.id || 
-                          urlBookingId || 
-                          storedBookingId;
-    
-    // Determine total amount
-    const finalTotal = stateData.totalAmount || 
-                       stateData.booking?.total_amount || 
-                       Number(storedTotal) || 
-                       0;
-    
-    console.log('🔍 BookingPayment - Data:', {
-      stateData,
-      storedBookingId,
-      finalBookingId,
-      finalTotal
-    });
-    
-    setBookingId(finalBookingId);
-    setTotalAmount(finalTotal);
-    setBookingData(stateData);
-    
-    // If no booking ID, show error and redirect
-    if (!finalBookingId) {
-      toast.error('Booking ID missing. Please go back and try again.');
-      setTimeout(() => {
-        navigate('/bookings');
-      }, 2000);
+    initializePaymentPage();
+  }, []);
+
+  const initializePaymentPage = async () => {
+    try {
+      const stateData = location.state || {};
+      
+      console.log('🔍 Location state:', stateData);
+      
+      // ✅ Get booking ID from multiple sources
+      let finalBookingId = null;
+      
+      // 1. Check location state
+      if (stateData.bookingId && stateData.bookingId !== 'undefined') {
+        finalBookingId = stateData.bookingId;
+      } else if (stateData.booking?.id && stateData.booking.id !== 'undefined') {
+        finalBookingId = stateData.booking.id;
+      }
+      
+      // 2. Check URL params
+      if (!finalBookingId) {
+        const urlBookingId = searchParams.get('booking_id');
+        if (urlBookingId && urlBookingId !== 'undefined') {
+          finalBookingId = urlBookingId;
+        }
+      }
+      
+      // 3. Check localStorage
+      if (!finalBookingId) {
+        const storedBookingId = localStorage.getItem('currentBookingId');
+        if (storedBookingId && storedBookingId !== 'undefined' && storedBookingId !== 'null') {
+          finalBookingId = storedBookingId;
+        }
+      }
+      
+      console.log('✅ Final booking ID:', finalBookingId);
+      
+      if (!finalBookingId) {
+        toast.error('Booking ID not found. Please book again.');
+        navigate('/vehicles');
+        return;
+      }
+      
+      setBookingId(finalBookingId);
+      
+      // ✅ Get total amount
+      let finalTotal = 0;
+      
+      if (stateData.totalAmount && stateData.totalAmount > 0) {
+        finalTotal = stateData.totalAmount;
+      } else if (stateData.booking?.total_amount && stateData.booking.total_amount > 0) {
+        finalTotal = stateData.booking.total_amount;
+      } else {
+        const storedTotal = localStorage.getItem('currentTotalAmount');
+        if (storedTotal && Number(storedTotal) > 0) {
+          finalTotal = Number(storedTotal);
+        }
+      }
+      
+      console.log('✅ Final total amount:', finalTotal);
+      
+      // ✅ If no amount, fetch booking details
+      if (!finalTotal && finalBookingId) {
+        try {
+          const response = await bookingService.getById(finalBookingId);
+          const bookingData = response.data || response;
+          finalTotal = Number(bookingData.total_amount) || 0;
+          console.log('✅ Fetched booking amount:', finalTotal);
+        } catch (error) {
+          console.error('Failed to fetch booking:', error);
+        }
+      }
+      
+      setTotalAmount(finalTotal);
+      setBookingData(stateData);
+      
+    } catch (error) {
+      console.error('❌ Error initializing payment page:', error);
+      toast.error('Failed to load booking details');
     }
-  }, [location, navigate]);
+  };
   
   const handlePayNow = async () => {
-    // ✅ Check if bookingId exists
-    if (!bookingId) {
-      toast.error('Booking ID missing. Please go back and try again.');
+    if (!bookingId || bookingId === 'undefined' || bookingId === 'null') {
+      toast.error('Invalid booking ID. Please book again.');
+      navigate('/vehicles');
       return;
     }
 
     setIsProcessing(true);
     setError('');
+    setIsExpired(false);
     
     try {
       console.log('🔍 Initiating payment for booking:', bookingId);
@@ -80,39 +124,76 @@ const BookingPayment = () => {
       const response = await paymentService.initiate(bookingId);
       console.log('✅ Payment response:', response);
       
-      const gatewayUrl = response?.data?.gatewayUrl || 
-                        response?.gatewayUrl || 
-                        response?.data?.data?.gatewayUrl;
+      // ✅ Extract gateway URL from different response formats
+      const responseData = response?.data || response;
+      const gatewayUrl = responseData?.gatewayUrl || 
+                        responseData?.data?.gatewayUrl ||
+                        response?.gatewayUrl ||
+                        responseData?.GatewayPageURL ||
+                        responseData?.data?.GatewayPageURL;
+      
+      console.log('✅ Gateway URL:', gatewayUrl);
       
       if (gatewayUrl) {
-        // ✅ Save booking ID for success page
+        // Save booking ID for success page
         localStorage.setItem('currentBookingId', bookingId);
+        localStorage.setItem('currentTotalAmount', totalAmount.toString());
+        
+        // Redirect to gateway
         window.location.href = gatewayUrl;
       } else {
         throw new Error('Payment gateway URL not received');
       }
     } catch (error) {
       console.error('❌ Payment failed:', error);
-      const message = error.response?.data?.message || error.message || 'Payment initiation failed';
+      
+      let message = error.response?.data?.message || error.message || 'Payment initiation failed';
+      
+      if (message.includes('expired') || message.includes('hold has expired')) {
+        setIsExpired(true);
+        message = '⏰ আপনার বুকিং হোল্ডের সময় শেষ হয়ে গেছে। দয়া করে নতুন করে বুক করুন।';
+        localStorage.removeItem('currentBookingId');
+        localStorage.removeItem('currentTotalAmount');
+      }
+      
       setError(message);
       toast.error(message);
       setIsProcessing(false);
     }
   };
-  
-  // If no booking ID, show loading/error
+
   if (!bookingId) {
     return (
       <div className="min-h-screen bg-slate-50 py-8">
         <div className="max-w-2xl mx-auto px-4 text-center">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-8">
+          <Card className="p-8 border-yellow-200 bg-yellow-50">
             <AlertCircle className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-slate-900 mb-2">Booking ID Missing</h2>
             <p className="text-slate-600 mb-4">Please go back and try again.</p>
-            <Button onClick={() => navigate('/bookings')}>
-              Go to My Bookings
+            <Button onClick={() => navigate('/vehicles')}>
+              Browse Cars
             </Button>
-          </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (isExpired) {
+    return (
+      <div className="min-h-screen bg-slate-50 py-8">
+        <div className="max-w-2xl mx-auto px-4 text-center">
+          <Card className="p-8 border-red-200 bg-red-50">
+            <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-red-800 mb-2">⏰ Booking Hold Expired</h2>
+            <p className="text-red-600 mb-4">
+              Your booking hold has expired. Please book again with new dates.
+            </p>
+            <Button onClick={() => navigate('/vehicles')}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Book Again
+            </Button>
+          </Card>
         </div>
       </div>
     );
@@ -135,7 +216,6 @@ const BookingPayment = () => {
           </div>
         )}
         
-        {/* Booking Info */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 text-sm">
           <div className="flex justify-between">
             <span className="text-slate-500">Booking ID</span>

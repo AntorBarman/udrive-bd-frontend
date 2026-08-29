@@ -1,3 +1,5 @@
+// frontend/src/pages/public/Home.jsx (COMPLETE - Only Reviews Section Updated)
+
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -20,6 +22,8 @@ import {
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import api from '../../services/api';
+import reviewService from '../../services/reviewService';
+import Spinner from '../../components/ui/Spinner';
 import { formatCurrency } from '../../utils/formatters';
 
 // ✅ Animation helper
@@ -40,9 +44,12 @@ const Home = () => {
   });
   const [featuredVehicles, setFeaturedVehicles] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [recentReviews, setRecentReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
   
   useEffect(() => {
     fetchHomeData();
+    fetchRecentReviews();
   }, []);
   
   const fetchHomeData = async () => {
@@ -55,6 +62,20 @@ const Home = () => {
     } catch (error) {
       setFeaturedVehicles([]);
       setBranches([]);
+    }
+  };
+  
+  // ✅ Fetch dynamic reviews
+  const fetchRecentReviews = async () => {
+    setReviewsLoading(true);
+    try {
+      const response = await reviewService.getRecentReviews(3);
+      setRecentReviews(response.data || []);
+    } catch (error) {
+      console.error('Failed to fetch reviews:', error);
+      setRecentReviews([]);
+    } finally {
+      setReviewsLoading(false);
     }
   };
   
@@ -349,7 +370,7 @@ const Home = () => {
         </div>
       </motion.section>
       
-      {/* ============ TESTIMONIALS ============ */}
+      {/* ============ TESTIMONIALS (DYNAMIC) ============ */}
       <motion.section {...fadeInUp} className="bg-white border-y border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="text-center mb-8">
@@ -359,25 +380,75 @@ const Home = () => {
             <p className="text-slate-500">Real experiences from verified renters</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { name: 'Antor Barman', rating: 5, text: 'Booking was simple and the car was exactly as described.' },
-              { name: 'Karim Hossain', rating: 5, text: 'Great experience! The owner was cooperative and the car was clean.' },
-              { name: 'Nusrat Jahan', rating: 4.5, text: 'Easy booking process and secure payment. Will definitely rent again.' },
-            ].map((review) => (
-              <div key={review.name} className="card-hover bg-white border border-slate-200 rounded-xl p-4">
-                <Quote className="w-6 h-6 text-blue-200 mb-2" />
-                <div className="flex mb-2">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className={`w-4 h-4 ${i < Math.floor(review.rating) ? 'fill-yellow-500 text-yellow-500' : 'text-slate-200'}`} />
-                  ))}
+          {reviewsLoading ? (
+            <div className="flex justify-center py-12">
+              <Spinner size="lg" />
+            </div>
+          ) : recentReviews.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {recentReviews.map((review) => (
+                <div key={review.id} className="card-hover bg-white border border-slate-200 rounded-xl p-6">
+                  <Quote className="w-8 h-8 text-blue-200 mb-3" />
+                  
+                  <div className="flex mb-3">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star 
+                        key={i} 
+                        className={`w-4 h-4 ${
+                          i < review.rating 
+                            ? 'fill-yellow-500 text-yellow-500' 
+                            : 'text-slate-200'
+                        }`} 
+                      />
+                    ))}
+                  </div>
+                  
+                  <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+                    "{review.comment}"
+                  </p>
+                  
+                  {review.brand && (
+                    <p className="text-xs text-blue-600 font-medium mb-3">
+                      {review.brand} {review.model} {review.year}
+                    </p>
+                  )}
+                  
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      {review.customer_avatar ? (
+                        <img
+                          src={review.customer_avatar}
+                          alt={review.customer_name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-blue-600 font-semibold text-sm">
+                          {review.customer_name?.charAt(0) || 'U'}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-900">
+                        {review.customer_name}
+                      </p>
+                      <p className="text-[10px] text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        Verified Customer
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-slate-600 mb-3">"{review.text}"</p>
-                <p className="text-xs font-semibold text-slate-900">{review.name}</p>
-                <p className="text-[10px] text-slate-400">Verified Customer</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <Card className="py-12 text-center">
+              <Quote className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500">No reviews yet. Be the first to review!</p>
+              <Link to="/vehicles" className="text-blue-600 text-sm hover:underline mt-2 inline-block">
+                Browse Cars
+              </Link>
+            </Card>
+          )}
         </div>
       </motion.section>
       

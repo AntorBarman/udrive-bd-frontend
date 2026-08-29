@@ -19,6 +19,7 @@ import {
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import { logout } from '../../features/auth/authSlice';
+import NotificationBell from '../NotificationBell'; // ✅ ADD THIS IMPORT
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -166,9 +167,8 @@ const Navbar = () => {
             <div className="flex items-center gap-2">
               {isAuthenticated ? (
                 <>
-                  <button className="hidden sm:flex p-2 hover:bg-slate-100 rounded-lg relative">
-                    <Bell className="w-5 h-5 text-slate-600" />
-                  </button>
+                  {/* ✅ REPLACE static Bell with NotificationBell */}
+                  <NotificationBell />
                   
                   <div className="relative" ref={userMenuRef}>
                     <button

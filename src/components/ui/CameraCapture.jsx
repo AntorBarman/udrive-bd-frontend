@@ -1,10 +1,13 @@
+// frontend/src/components/ui/CameraCapture.jsx (UPDATED)
+
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Camera, RefreshCw, Check, X, AlertCircle } from 'lucide-react';
+import { Camera, RefreshCw, Check, X, AlertCircle, Upload } from 'lucide-react';
 import Button from './Button';
 
 const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 'customer' }) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [capturedImage, setCapturedImage] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [error, setError] = useState('');
@@ -30,6 +33,25 @@ const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 
       setError('');
       setIsLoading(true);
 
+      // ✅ Check if HTTPS
+      const isSecure = window.isSecureContext;
+      console.log('🔍 Is secure context:', isSecure);
+      console.log('🔍 Protocol:', window.location.protocol);
+      console.log('🔍 Hostname:', window.location.hostname);
+
+      if (!isSecure) {
+        setError('Camera requires HTTPS. Current protocol is ' + window.location.protocol + '. Please use https://192.168.0.224:5173');
+        setIsLoading(false);
+        return;
+      }
+
+      // ✅ Check mediaDevices
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError('Camera not supported. navigator.mediaDevices is undefined');
+        setIsLoading(false);
+        return;
+      }
+
       const facingMode = docType === 'vehicle_photo' ? 'environment' : 'user';
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -38,6 +60,7 @@ const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
+        audio: false,
       });
 
       streamRef.current = stream;
@@ -47,14 +70,23 @@ const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 
       }
       setIsCameraActive(true);
       setCapturedImage(null);
+      console.log('✅ Camera started successfully');
+
     } catch (err) {
-      console.error('Camera error:', err);
+      console.error('❌ Camera error:', err);
+      console.error('❌ Error name:', err.name);
+      console.error('❌ Error message:', err.message);
+
       if (err.name === 'NotAllowedError') {
-        setError('Camera permission denied. Please allow camera access in browser settings.');
+        setError('Camera permission denied. Click camera icon in address bar and allow access.');
       } else if (err.name === 'NotFoundError') {
-        setError('No camera found. Please connect a camera.');
+        setError('No camera found on this device.');
+      } else if (err.name === 'NotReadableError') {
+        setError('Camera is busy. Close other apps using camera.');
+      } else if (err.name === 'SecurityError') {
+        setError('Camera blocked by browser security. Use HTTPS.');
       } else {
-        setError('Camera access failed. Please try again.');
+        setError('Camera error: ' + err.message);
       }
     } finally {
       setIsLoading(false);
@@ -92,6 +124,30 @@ const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 
     stopCamera();
   }, [stopCamera, docType]);
 
+  // ✅ ADD: File upload fallback
+  const handleFileUpload = useCallback((e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size should be less than 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setCapturedImage(event.target.result);
+      setError('');
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
   const handleConfirm = () => {
     if (capturedImage) {
       setIsLoading(true);
@@ -101,7 +157,7 @@ const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 
         .then((blob) => {
           const fileName = `${docType}_${Date.now()}.jpg`;
           const file = new File([blob], fileName, { type: 'image/jpeg' });
-          
+
           // Passes back (file, previewUrl, docType)
           onCapture(file, capturedImage, docType);
         })
@@ -130,6 +186,15 @@ const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
       {/* Background Overlay */}
       <div className="fixed inset-0" onClick={onClose} />
+
+      {/* Hidden File Input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
 
       {/* Modal Container */}
       <div className="relative bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl z-10 my-8">
@@ -174,9 +239,8 @@ const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 
                 autoPlay
                 playsInline
                 muted
-                className={`w-full h-full object-cover ${
-                  docType !== 'vehicle_photo' ? '-scale-x-100' : ''
-                }`}
+                className={`w-full h-full object-cover ${docType !== 'vehicle_photo' ? '-scale-x-100' : ''
+                  }`}
               />
 
               {/* Oval Overlay for Face Captures */}
@@ -191,6 +255,15 @@ const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 
                   <Camera className="w-12 h-12 mb-2 stroke-1 text-slate-500" />
                   <span className="text-sm font-medium text-slate-300">Camera is off</span>
                   <span className="text-xs text-slate-500 mt-1">Click "Start Camera" to begin</span>
+
+                  {/* ✅ ADD: Upload Photo option */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Upload Photo Instead
+                  </button>
                 </div>
               )}
 
@@ -209,10 +282,16 @@ const CameraCapture = ({ onCapture, onClose, docType = 'face_photo', userRole = 
           {!capturedImage ? (
             <>
               {!isCameraActive ? (
-                <Button fullWidth onClick={startCamera} isLoading={isLoading}>
-                  <Camera className="w-4 h-4" />
-                  Start Camera
-                </Button>
+                <>
+                  <Button fullWidth onClick={startCamera} isLoading={isLoading}>
+                    <Camera className="w-4 h-4" />
+                    Start Camera
+                  </Button>
+                  <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="w-4 h-4" />
+                    Upload
+                  </Button>
+                </>
               ) : (
                 <Button fullWidth onClick={capturePhoto}>
                   <Camera className="w-4 h-4" />

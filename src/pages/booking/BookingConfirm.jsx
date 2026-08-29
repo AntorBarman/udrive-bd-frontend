@@ -1,6 +1,9 @@
+// frontend/src/pages/BookingConfirm.jsx
+
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, AlertCircle } from 'lucide-react';
+import { useSelector } from 'react-redux';
 import BookingStepper from '../../components/booking/BookingStepper';
 import BookingSummary from '../../components/booking/BookingSummary';
 import PriceBreakdown from '../../components/booking/PriceBreakdown';
@@ -12,6 +15,7 @@ import { toast } from 'react-toastify';
 const BookingConfirm = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
 
   const [agreed, setAgreed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,12 +43,19 @@ const BookingConfirm = () => {
 
     if (!vehicleId) {
       toast.error('Vehicle ID is missing!');
-      console.error('❌ Vehicle ID missing:', vehicle);
       return;
     }
 
     if (!pickupDate || !returnDate) {
       toast.error('Please select pickup and return dates');
+      return;
+    }
+
+    // ✅ Check if user is logged in
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login', { state: { from: '/booking/confirm' } });
       return;
     }
 
@@ -66,23 +77,17 @@ const BookingConfirm = () => {
       console.log('✅ Full response:', response);
 
       const responseData = response?.data || response;
-      const booking = responseData?.booking || responseData?.data?.booking;
-      const bookingId = responseData?.bookingId || 
-                       booking?.id || 
-                       responseData?.data?.bookingId;
+      const booking = responseData?.booking || responseData?.data?.booking || responseData;
+      const bookingId = booking?.id || responseData?.bookingId || responseData?.data?.bookingId;
 
       console.log('✅ Booking ID:', bookingId);
 
       if (!bookingId) {
-        console.error('❌ No booking ID in response:', response);
         toast.error('Booking created but ID not received.');
         navigate('/bookings');
         return;
       }
 
-      // ✅ Clear old expired booking ID and set new one
-      localStorage.removeItem('currentBookingId');
-      localStorage.removeItem('currentTotalAmount');
       localStorage.setItem('currentBookingId', bookingId);
       localStorage.setItem('currentTotalAmount', totalAmount);
 
@@ -91,21 +96,27 @@ const BookingConfirm = () => {
           ...bookingData,
           bookingId: bookingId,
           booking: booking,
-          gatewayUrl: responseData?.gatewayUrl || null,
         },
       });
 
     } catch (error) {
       console.error('❌ Error:', error);
+      console.error('❌ Error response status:', error.response?.status);
+      console.error('❌ Error response data:', error.response?.data);
       
       let errorMessage = 'Failed to create booking';
       
       if (error.response) {
-        console.log('❌ Error response status:', error.response.status);
-        console.log('❌ Error response data:', error.response.data);
-        
-        if (error.response.status === 409) {
-          errorMessage = '🚫 This vehicle is already booked for the selected dates. Please choose different dates or another vehicle.';
+        if (error.response.status === 401) {
+          errorMessage = 'Session expired. Please login again.';
+          toast.error(errorMessage);
+          localStorage.removeItem('accessToken');
+          navigate('/login');
+          return;
+        } else if (error.response.status === 403) {
+          errorMessage = error.response.data?.message || 'KYC verification required. Please complete your KYC first.';
+        } else if (error.response.status === 409) {
+          errorMessage = '🚫 Vehicle already booked for these dates. Please choose different dates.';
         } else if (error.response.data?.message) {
           errorMessage = error.response.data.message;
         } else if (error.response.data?.errors) {
@@ -119,6 +130,7 @@ const BookingConfirm = () => {
       
       toast.error(errorMessage);
       setApiError(errorMessage);
+    } finally {
       setIsLoading(false);
     }
   };
