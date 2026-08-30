@@ -77,11 +77,6 @@ import VerifyEmail from './pages/auth/VerifyEmail';
 import KYCPage from './pages/KYCPage';
 
 
-
-
-
-
-
 function App() {
   return (
     <Router>
