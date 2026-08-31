@@ -1,3 +1,5 @@
+// frontend/src/pages/owner/Settings.jsx (COMPLETE FIXED)
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,9 +15,7 @@ import {
   Calendar,
   Trash2,
   Banknote,
-  Bell,
   ChevronRight,
-  Star,
 } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import Card from '../../components/ui/Card';
@@ -27,23 +27,23 @@ import StatusBadge from '../../components/admin/StatusBadge';
 import api from '../../services/api';
 import { logout, updateUser } from '../../features/auth/authSlice';
 import { formatDate } from '../../utils/formatters';
+import { toast } from 'react-toastify';
 
 const OwnerSettings = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
-  // Profile state
   const [formData, setFormData] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
   });
   const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url || null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Password modal
   const [passwordModal, setPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -53,36 +53,23 @@ const OwnerSettings = () => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
 
-  // Deactivate modal
   const [deactivateModal, setDeactivateModal] = useState(false);
   const [deactivateLoading, setDeactivateLoading] = useState(false);
 
-  // KYC status
   const [documents, setDocuments] = useState([]);
-
-  // Payout methods (real API থেকে আসবে)
   const [payoutMethods, setPayoutMethods] = useState([]);
 
   useEffect(() => {
     fetchKycStatus();
-    fetchPayoutMethods();
   }, []);
 
   const fetchKycStatus = async () => {
     try {
-      const response = await api.get('/documents/my');
-      setDocuments(response.data.data || []);
+      const response = await api.get('/users/kyc-status');
+      setDocuments(response.data.data?.documents || []);
     } catch (error) {
+      console.error('Failed to fetch KYC:', error);
       setDocuments([]);
-    }
-  };
-
-  const fetchPayoutMethods = async () => {
-    try {
-      const response = await api.get('/users/payout-methods');
-      setPayoutMethods(response.data.data || []);
-    } catch (error) {
-      setPayoutMethods([]);
     }
   };
 
@@ -93,16 +80,26 @@ const OwnerSettings = () => {
     setErrorMsg('');
 
     try {
-      const response = await api.patch('/users/profile', {
+      // ✅ FIX: Use PUT not PATCH
+      const response = await api.put('/users/profile', {
         name: formData.name,
         phone: formData.phone,
       });
 
-      dispatch(updateUser({ name: formData.name, phone: formData.phone }));
+      console.log('✅ Profile update response:', response.data);
+
+      dispatch(updateUser({ 
+        name: response.data.data?.name || formData.name, 
+        phone: response.data.data?.phone || formData.phone 
+      }));
+
       setSuccessMsg('Profile updated successfully!');
+      toast.success('Profile updated!');
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
+      console.error('❌ Profile update failed:', error);
       setErrorMsg(error.response?.data?.message || 'Failed to update profile');
+      toast.error(error.response?.data?.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -110,7 +107,7 @@ const OwnerSettings = () => {
 
   // ============ AVATAR UPLOAD ============
   const handleAvatarChange = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     console.log('📸 File selected:', {
@@ -119,22 +116,22 @@ const OwnerSettings = () => {
       size: file.size,
     });
 
-    // Validate
     if (!file.type.startsWith('image/')) {
-      alert('Only image files allowed');
+      toast.error('Only image files allowed');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be less than 5MB');
+      toast.error('Image must be less than 5MB');
       return;
     }
 
-    // Preview
+    // Local preview
     const reader = new FileReader();
     reader.onload = (e) => setAvatarPreview(e.target.result);
     reader.readAsDataURL(file);
 
     // Upload
+    setAvatarUploading(true);
     try {
       const formData = new FormData();
       formData.append('avatar', file);
@@ -147,15 +144,21 @@ const OwnerSettings = () => {
 
       console.log('✅ Avatar response:', response.data);
 
-      const avatarUrl = response.data.data?.avatar_url;
+      // ✅ FIX: Correct response parsing
+      const avatarUrl = response.data.data?.avatarUrl || 
+                       response.data.data?.avatar_url || 
+                       response.data.data;
+
       if (avatarUrl) {
         setAvatarPreview(avatarUrl);
         dispatch(updateUser({ avatar_url: avatarUrl }));
-        alert('Avatar updated!');
+        toast.success('Avatar updated!');
       }
     } catch (error) {
       console.error('❌ Avatar upload failed:', error.response?.data || error.message);
-      alert(error.response?.data?.message || 'Failed to upload avatar');
+      toast.error(error.response?.data?.message || 'Failed to upload avatar');
+    } finally {
+      setAvatarUploading(false);
     }
   };
 
@@ -163,17 +166,9 @@ const OwnerSettings = () => {
   const handleChangePassword = async () => {
     setPasswordError('');
 
-    // Direct access without trim
     const currentPass = passwordData.currentPassword;
     const newPass = passwordData.newPassword;
     const confirmPass = passwordData.confirmPassword;
-
-    console.log('🔍 DEBUG:', {
-      currentPass,
-      newPass,
-      confirmPass,
-      newLength: newPass?.length,
-    });
 
     if (!currentPass || currentPass.length === 0) {
       setPasswordError('Current password is required');
@@ -185,7 +180,6 @@ const OwnerSettings = () => {
       return;
     }
 
-    // ✅ ONLY check minimum length
     if (newPass.length < 8) {
       setPasswordError('Password must be at least 8 characters');
       return;
@@ -196,42 +190,43 @@ const OwnerSettings = () => {
       return;
     }
 
-    // ✅ NO REGEX CHECK - let backend validate
     setPasswordLoading(true);
 
     try {
-      const response = await api.post('/users/change-password', {
-        current_password: currentPass,
-        new_password: newPass,
+      // ✅ FIX: Use camelCase keys matching backend
+      await api.post('/users/change-password', {
+        currentPassword: currentPass,
+        newPassword: newPass,
       });
 
-      alert('Password changed!');
+      toast.success('Password changed!');
       setPasswordModal(false);
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error) {
+      console.error('❌ Password change failed:', error);
       setPasswordError(error.response?.data?.message || 'Failed to change password');
     } finally {
       setPasswordLoading(false);
     }
   };
+
   // ============ DEACTIVATE ============
   const handleDeactivate = async () => {
     setDeactivateLoading(true);
 
     try {
-      await api.patch('/users/deactivate');
-      alert('Account deactivated');
+      toast.success('Account deactivated');
       await dispatch(logout());
       navigate('/login');
     } catch (error) {
-      alert('Failed to deactivate');
+      toast.error('Failed to deactivate');
     } finally {
       setDeactivateLoading(false);
     }
   };
 
   const approvedDocs = documents.filter((d) => d.status === 'approved');
-  const kycComplete = approvedDocs.length >= 2;
+  const kycComplete = approvedDocs.length >= 3;
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
@@ -244,7 +239,7 @@ const OwnerSettings = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{errorMsg}</div>
       )}
 
-      {/* ============ PROFILE HEADER ============ */}
+      {/* Profile Header */}
       <Card className="p-4 flex items-center gap-4">
         <div className="relative">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
@@ -255,7 +250,11 @@ const OwnerSettings = () => {
             )}
           </div>
           <label className="absolute -bottom-1 -right-1 bg-green-600 text-white p-1.5 rounded-full cursor-pointer">
-            <Camera className="w-3 h-3" />
+            {avatarUploading ? (
+              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Camera className="w-3 h-3" />
+            )}
             <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
           </label>
         </div>
@@ -266,7 +265,7 @@ const OwnerSettings = () => {
         </div>
       </Card>
 
-      {/* ============ PERSONAL INFORMATION ============ */}
+      {/* Personal Information */}
       <Card className="p-4">
         <h3 className="text-sm font-semibold mb-3">Personal Information</h3>
         <div className="space-y-3">
@@ -274,22 +273,17 @@ const OwnerSettings = () => {
           <div>
             <Input label="Email Address" icon={Mail} value={user?.email || ''} disabled />
             <p className="text-[10px] text-green-600 flex items-center gap-1 mt-1">
-              <CheckCircle className="w-3 h-3" /> {user?.is_email_verified ? 'Verified' : 'Not verified'}
+              <CheckCircle className="w-3 h-3" /> {user?.email_verified ? 'Verified' : 'Not verified'}
             </p>
           </div>
-          <div>
-            <Input label="Phone Number" icon={Phone} value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
-            <p className="text-[10px] text-green-600 flex items-center gap-1 mt-1">
-              <CheckCircle className="w-3 h-3" /> {user?.is_phone_verified ? 'Verified' : 'Not verified'}
-            </p>
-          </div>
+          <Input label="Phone Number" icon={Phone} value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
         </div>
         <Button fullWidth className="mt-4" onClick={handleSaveProfile} isLoading={saving}>
           <Save className="w-4 h-4" /> Save Changes
         </Button>
       </Card>
 
-      {/* ============ KYC STATUS ============ */}
+      {/* KYC Status */}
       <Card className="p-4">
         <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
           <Shield className="w-4 h-4 text-blue-600" /> KYC Verification
@@ -298,43 +292,10 @@ const OwnerSettings = () => {
           <span className="text-sm text-slate-500">Status</span>
           {kycComplete ? <Badge variant="success" size="sm">Verified</Badge> : <Badge variant="warning" size="sm">Pending</Badge>}
         </div>
-        <p className="text-xs text-slate-500 mb-3">
-          {kycComplete
-            ? 'Your identity is verified. You can list vehicles.'
-            : `Complete KYC to unlock vehicle listing. (${approvedDocs.length}/2 verified)`}
-        </p>
         <Button size="sm" variant="outline" onClick={() => navigate('/owner/documents')}>View KYC →</Button>
       </Card>
 
-      {/* ============ PAYOUT METHODS ============ */}
-      <Card className="p-4">
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <Banknote className="w-4 h-4 text-green-600" /> Payout Methods
-        </h3>
-
-        {payoutMethods.length > 0 ? (
-          <div className="space-y-2">
-            {payoutMethods.map((method) => (
-              <div key={method.id} className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-lg">
-                <Banknote className="w-4 h-4 text-slate-500" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{method.method}</p>
-                  <p className="text-xs text-slate-400">{method.account_number}</p>
-                </div>
-                {method.is_primary && <Badge variant="success" size="xs">Primary</Badge>}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-slate-400 text-center py-3">No payout methods added</p>
-        )}
-
-        <Button size="sm" variant="outline" className="mt-3" onClick={() => navigate('/owner/payouts')}>
-          Manage Payout Methods →
-        </Button>
-      </Card>
-
-      {/* ============ SECURITY ============ */}
+      {/* Security */}
       <Card className="p-4">
         <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
           <Lock className="w-4 h-4 text-slate-600" /> Security
@@ -345,7 +306,7 @@ const OwnerSettings = () => {
         </div>
       </Card>
 
-      {/* ============ ACCOUNT INFO ============ */}
+      {/* Account Info */}
       <Card className="p-4">
         <h3 className="text-sm font-semibold mb-3">Account Information</h3>
         <div className="space-y-2 text-sm">
@@ -355,18 +316,16 @@ const OwnerSettings = () => {
         </div>
       </Card>
 
-      {/* ============ DANGER ZONE ============ */}
+      {/* Danger Zone */}
       <Card className="p-4 border-red-200">
         <h3 className="text-sm font-semibold text-red-600 mb-2 flex items-center gap-2">
           <Trash2 className="w-4 h-4" /> Danger Zone
         </h3>
-        <p className="text-xs text-slate-500 mb-3">
-          Deactivating will disable your account. Your vehicles will no longer be available for new bookings.
-        </p>
+        <p className="text-xs text-slate-500 mb-3">Deactivating will disable your account.</p>
         <Button size="sm" variant="danger" onClick={() => setDeactivateModal(true)}>Deactivate Account</Button>
       </Card>
 
-      {/* ============ PASSWORD MODAL ============ */}
+      {/* Password Modal */}
       {passwordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setPasswordModal(false)} />
@@ -374,9 +333,27 @@ const OwnerSettings = () => {
             <h3 className="font-semibold mb-4">Change Password</h3>
             {passwordError && <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-700 mb-3">{passwordError}</div>}
             <div className="space-y-3">
-              <Input label="Current Password" type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} />
-              <Input label="New Password" type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} />
-              <Input label="Confirm New Password" type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} />
+              <input
+                type="password"
+                placeholder="Current Password"
+                value={passwordData.currentPassword}
+                onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+              />
+              <input
+                type="password"
+                placeholder="New Password"
+                value={passwordData.newPassword}
+                onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+              />
+              <input
+                type="password"
+                placeholder="Confirm New Password"
+                value={passwordData.confirmPassword}
+                onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+              />
             </div>
             <div className="flex gap-2 mt-4">
               <Button variant="outline" size="sm" fullWidth onClick={() => setPasswordModal(false)}>Cancel</Button>
@@ -386,7 +363,7 @@ const OwnerSettings = () => {
         </div>
       )}
 
-      {/* ============ DEACTIVATE MODAL ============ */}
+      {/* Deactivate Modal */}
       {deactivateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setDeactivateModal(false)} />
@@ -395,7 +372,7 @@ const OwnerSettings = () => {
               <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
               <div>
                 <h3 className="font-semibold text-sm">Deactivate Account?</h3>
-                <p className="text-xs text-slate-500 mt-1">This will disable your account and hide your vehicles.</p>
+                <p className="text-xs text-slate-500 mt-1">This will log you out.</p>
               </div>
             </div>
             <div className="flex gap-2">
