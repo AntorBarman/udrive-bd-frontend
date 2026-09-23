@@ -1,42 +1,30 @@
-// frontend/src/pages/public/Home.jsx (COMPLETE - Only Reviews Section Updated)
+// frontend/src/pages/public/Home.jsx
 
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Search, 
-  MapPin, 
-  Calendar, 
-  Shield, 
-  Key, 
-  Lock, 
-  CreditCard,
-  Car,
-  ChevronRight,
-  Star,
-  CheckCircle,
-  Clock,
-  ArrowRight,
-  Quote,
+import {
+  Search, MapPin, Calendar, Shield, Key, Lock, CreditCard,
+  Car, ChevronRight, Star, CheckCircle, Clock, ArrowRight,
+  Quote, Sparkles, TrendingUp, Play
 } from 'lucide-react';
-import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import api from '../../services/api';
 import reviewService from '../../services/reviewService';
 import Spinner from '../../components/ui/Spinner';
 import { formatCurrency } from '../../utils/formatters';
 
-// ✅ Animation helper
+// Animation variants
 const fadeInUp = {
-  initial: { opacity: 0, y: 30 },
+  initial: { opacity: 0, y: 40 },
   whileInView: { opacity: 1, y: 0 },
   viewport: { once: true, amount: 0.2 },
-  transition: { duration: 0.5, ease: 'easeOut' },
+  transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
 };
 
 const Home = () => {
   const navigate = useNavigate();
-  
+
   const [searchData, setSearchData] = useState({
     location: '',
     pickupDate: '',
@@ -46,17 +34,17 @@ const Home = () => {
   const [branches, setBranches] = useState([]);
   const [recentReviews, setRecentReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
-  
+
   useEffect(() => {
     fetchHomeData();
     fetchRecentReviews();
   }, []);
-  
+
   const fetchHomeData = async () => {
     try {
       const vehiclesRes = await api.get('/vehicles?limit=6');
       setFeaturedVehicles(vehiclesRes.data?.data || vehiclesRes.data || []);
-      
+
       const branchesRes = await api.get('/branches');
       setBranches(branchesRes.data?.data || branchesRes.data || []);
     } catch (error) {
@@ -64,8 +52,7 @@ const Home = () => {
       setBranches([]);
     }
   };
-  
-  // ✅ Fetch dynamic reviews
+
   const fetchRecentReviews = async () => {
     setReviewsLoading(true);
     try {
@@ -78,419 +65,666 @@ const Home = () => {
       setReviewsLoading(false);
     }
   };
-  
+
   const handleSearch = (e) => {
     e.preventDefault();
     const params = new URLSearchParams();
     if (searchData.location) params.append('location', searchData.location);
+    if (searchData.pickupDate) params.append('pickupDate', searchData.pickupDate);
+    if (searchData.returnDate) params.append('returnDate', searchData.returnDate);
     navigate(`/vehicles?${params.toString()}`);
   };
-  
+
   return (
-    <div>
-      {/* ============ HERO SECTION ============ */}
-      <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 text-white overflow-hidden">
-        {/* Subtle Pattern */}
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-20 left-10 w-96 h-96 border-4 border-blue-500 rounded-full" />
-          <div className="absolute bottom-20 right-10 w-64 h-64 border-4 border-blue-400 rounded-full" />
-          <div className="absolute top-1/2 left-1/2 w-48 h-48 border-2 border-blue-300 rounded-full -translate-x-1/2 -translate-y-1/2" />
-        </div>
-        
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
-          <motion.div 
+    <div className="bg-white">
+      {/* ============================================ */}
+      {/* ✅ FULL-WIDTH HERO SECTION (FIXED) */}
+      {/* ============================================ */}
+      <section className="relative min-h-screen w-full flex flex-col justify-center overflow-hidden">
+        {/* Background Image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: `url('https://images.unsplash.com/photo-1617531653332-bd46c24f2068?auto=format&fit=crop&q=80&w=2400')`,
+          }}
+        />
+
+        {/* ✅ Balanced Overlay - Text Readable, Image Visible */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-black/20"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+
+        {/* Main Content */}
+        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-40 pb-20">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+
+            {/* Left: Text Content */}
+            <div className="lg:col-span-7 max-w-2xl">
+
+              {/* Badge */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                className="inline-flex items-center gap-2 bg-white/10 border border-white/20 backdrop-blur-md px-4 py-2 rounded-full mb-6"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span className="text-white text-sm font-medium">
+                  Bangladesh's #1 Car Rental Platform
+                </span>
+              </motion.div>
+
+              {/* Heading with Text Shadow */}
+              <motion.h1
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.1 }}
+                className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold text-white leading-[1.05] mb-6 tracking-tight"
+                style={{
+                  fontFamily: 'Space Grotesk, sans-serif',
+                  textShadow: '0 4px 20px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.4)'
+                }}
+              >
+                Fast & Easy
+                <br />
+                Way To{' '}
+                <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                  Rent A Car
+                </span>
+              </motion.h1>
+
+              {/* Subtitle with Shadow */}
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="text-lg md:text-xl text-white mb-10 max-w-xl leading-relaxed"
+                style={{ textShadow: '0 2px 10px rgba(0,0,0,0.6)' }}
+              >
+                Verified cars. Trusted owners. Your journey, your way.
+                Experience premium self-drive car rental across Bangladesh.
+              </motion.p>
+
+              {/* CTA Buttons */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.3 }}
+                className="flex flex-wrap items-center gap-4 mb-12"
+              >
+                <Link to="/vehicles">
+                  <button className="group bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-4 rounded-xl transition-all transform hover:scale-105 shadow-2xl shadow-emerald-500/40 flex items-center gap-2">
+                    <Car className="w-5 h-5" />
+                    Browse Cars
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </Link>
+
+                <button className="group flex items-center gap-3 text-white font-semibold">
+                  <div className="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center shadow-xl shadow-emerald-500/40 group-hover:scale-110 transition-transform">
+                    <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+                  </div>
+                  <span
+                    className="text-lg"
+                    style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+                  >
+                    How it works
+                  </span>
+                </button>
+              </motion.div>
+
+              {/* Stats */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.5 }}
+                className="flex flex-wrap items-center gap-8 text-white"
+              >
+                <div>
+                  <p className="text-3xl font-bold" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                    500+
+                  </p>
+                  <p className="text-slate-100 text-sm" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>
+                    Verified Cars
+                  </p>
+                </div>
+                <div className="w-px h-12 bg-white/30"></div>
+                <div>
+                  <p className="text-3xl font-bold" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                    10K+
+                  </p>
+                  <p className="text-slate-100 text-sm" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>
+                    Happy Customers
+                  </p>
+                </div>
+                <div className="w-px h-12 bg-white/30"></div>
+                <div>
+                  <p className="text-3xl font-bold" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                    4.9★
+                  </p>
+                  <p className="text-slate-100 text-sm" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>
+                    Average Rating
+                  </p>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Right side for image visibility */}
+            <div className="lg:col-span-5 hidden lg:block"></div>
+          </div>
+
+          {/* Search Widget */}
+          <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center max-w-3xl mx-auto mb-10"
+            transition={{ duration: 0.8, delay: 0.7 }}
+            className="mt-12 max-w-5xl"
           >
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-              Drive Your Way{' '}
-              <span className="text-blue-400">Across Bangladesh</span>
-            </h1>
-            
-            <p className="text-lg md:text-xl text-slate-300 mb-4">
-              Verified cars. Trusted owners. Your journey, your way.
-            </p>
-            
-            <div className="flex items-center justify-center gap-4 text-sm text-slate-300">
-              <span className="flex items-center gap-1"><CheckCircle className="w-4 h-4 text-green-400" /> Verified Cars</span>
-              <span className="flex items-center gap-1"><Lock className="w-4 h-4 text-green-400" /> Secure Payment</span>
-              <span className="flex items-center gap-1"><Shield className="w-4 h-4 text-green-400" /> KYC Protected</span>
-            </div>
-          </motion.div>
-          
-          {/* Search Widget */}
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="max-w-3xl mx-auto"
-          >
-            <form onSubmit={handleSearch}>
-              <div className="bg-white rounded-xl shadow-2xl p-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <select
-                      value={searchData.location}
-                      onChange={(e) => setSearchData({ ...searchData, location: e.target.value })}
-                      className="w-full pl-10 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    >
-                      <option value="">Pickup Location</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.city}>{branch.city}</option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input
-                      type="date"
-                      className="w-full pl-10 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                      value={searchData.pickupDate}
-                      onChange={(e) => setSearchData({ ...searchData, pickupDate: e.target.value })}
-                    />
-                  </div>
-                  
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input
-                      type="date"
-                      className="w-full pl-10 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                      value={searchData.returnDate}
-                      onChange={(e) => setSearchData({ ...searchData, returnDate: e.target.value })}
-                    />
-                  </div>
-                  
-                  <button
-                    type="submit"
-                    className="btn-hover bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg py-3 px-6 flex items-center justify-center gap-2 transition-all"
+            <div className="bg-white/95 backdrop-blur-xl rounded-2xl p-2 shadow-2xl border border-white/20">
+              <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                {/* Location */}
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
+                  <select
+                    value={searchData.location}
+                    onChange={(e) => setSearchData({ ...searchData, location: e.target.value })}
+                    className="w-full pl-12 pr-4 py-4 bg-white border-0 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
                   >
-                    <Search className="w-5 h-5" />
-                    Search Cars
-                  </button>
+                    <option value="">Pickup Location</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.city}>{branch.city}</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-            </form>
+
+                {/* Pickup Date */}
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
+                  <input
+                    type="date"
+                    className="w-full pl-12 pr-4 py-4 bg-white border-0 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                    value={searchData.pickupDate}
+                    onChange={(e) => setSearchData({ ...searchData, pickupDate: e.target.value })}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+
+                {/* Return Date */}
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
+                  <input
+                    type="date"
+                    className="w-full pl-12 pr-4 py-4 bg-white border-0 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                    value={searchData.returnDate}
+                    onChange={(e) => setSearchData({ ...searchData, returnDate: e.target.value })}
+                    min={searchData.pickupDate || new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+
+                {/* Search Button */}
+                <button
+                  type="submit"
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl py-4 px-6 flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/30"
+                >
+                  <Search className="w-5 h-5" />
+                  Search
+                </button>
+              </form>
+            </div>
           </motion.div>
         </div>
       </section>
-      
-      {/* ============ POPULAR CARS ============ */}
-      <motion.section {...fadeInUp} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-              Popular Cars Near You
-            </h2>
-            <p className="text-slate-500 text-sm">Verified vehicles ready for your next trip</p>
-          </div>
-          <Link to="/vehicles" className="text-blue-600 text-sm hover:underline flex items-center gap-1">
-            View All <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
-        
-        {featuredVehicles.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {featuredVehicles.slice(0, 6).map((vehicle) => (
-              <Link
-                key={vehicle.id}
-                to={`/vehicles/${vehicle.id}`}
-                className="card-hover bg-white border border-slate-200 rounded-xl overflow-hidden"
-              >
-                <div className="relative h-44 overflow-hidden bg-slate-100">
-                  {vehicle.primary_image ? (
-                    <img
-                      src={vehicle.primary_image}
-                      alt={`${vehicle.brand} ${vehicle.model}`}
-                      className="w-full h-full object-cover"
-                      crossOrigin="anonymous"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Car className="w-12 h-12 text-slate-300" />
-                    </div>
-                  )}
-                  <span className="absolute top-2 left-2 bg-white/90 px-2 py-0.5 rounded text-xs font-medium">
-                    {vehicle.vehicle_type}
-                  </span>
-                </div>
-                
-                <div className="p-4">
-                  <div className="flex justify-between items-start mb-1">
-                    <h3 className="font-semibold text-slate-900">
-                      {vehicle.brand} {vehicle.model}
-                    </h3>
-                    <span className="flex items-center gap-1 text-sm">
-                      <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
-                      {Number(vehicle.average_rating || 0).toFixed(1)}
-                    </span>
-                  </div>
-                  
-                  <p className="text-xs text-slate-500 mb-2">
-                    {vehicle.year} • {vehicle.branch_name || 'Available'}
-                  </p>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-blue-600">
-                      {formatCurrency(vehicle.daily_rate)}<span className="text-xs text-slate-400">/day</span>
-                    </span>
-                    <span className="text-xs text-blue-600 flex items-center gap-1">
-                      View Car <ChevronRight className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <Card className="py-8 text-center">
-            <Car className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-            <p className="text-slate-500">No vehicles available yet</p>
-          </Card>
-        )}
-      </motion.section>
-      
-      {/* ============ WHY CHOOSE UDRIVE ============ */}
-      <motion.section {...fadeInUp} className="bg-white border-y border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl font-bold text-slate-900 mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-              Why Choose UDrive?
-            </h2>
-            <p className="text-slate-500">Built on trust, safety, and convenience</p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {[
-              { icon: Shield, title: 'Verified Vehicles', desc: 'Every vehicle reviewed and verified before rental' },
-              { icon: Key, title: 'Secure KYC', desc: 'Identity verification for owners and renters' },
-              { icon: CreditCard, title: 'Secure Payments', desc: 'SSLCommerz protected transactions' },
-              { icon: Clock, title: 'Flexible Pickup', desc: 'Multiple locations across Bangladesh' },
-              { icon: CheckCircle, title: 'Trusted Owners', desc: 'Community of verified car owners' },
-            ].map((item, index) => (
-              <div key={item.title} className={`card-hover text-center p-4 rounded-xl ${
-                index % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100'
-              }`}>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 shadow-md ${
-                  index % 3 === 0 ? 'bg-blue-600' : index % 3 === 1 ? 'bg-blue-700' : 'bg-blue-500'
-                }`}>
-                  <item.icon className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="font-semibold text-sm text-slate-900 mb-1">{item.title}</h3>
-                <p className="text-xs text-slate-500">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </motion.section>
-      
-      {/* ============ HOW IT WORKS ============ */}
-      <motion.section {...fadeInUp} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-10">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-            How It Works
-          </h2>
-          <p className="text-slate-500">Four simple steps to your next journey</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {[
-            { step: '1', title: 'Search', desc: 'Find the perfect car for your needs' },
-            { step: '2', title: 'Choose', desc: 'Select dates and review pricing' },
-            { step: '3', title: 'Book', desc: 'Pay securely with SSLCommerz' },
-            { step: '4', title: 'Drive', desc: 'Pick up your car and go!' },
-          ].map((item) => (
-            <div key={item.step} className="text-center relative">
-              <div className="w-14 h-14 text-white text-xl font-bold rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg bg-gradient-to-br from-blue-500 to-blue-700">
-                {item.step}
-              </div>
-              <h3 className="font-semibold text-slate-900 mb-1">{item.title}</h3>
-              <p className="text-sm text-slate-500">{item.desc}</p>
-              
-              {item.step !== '4' && (
-                <ArrowRight className="hidden md:block absolute top-6 -right-4 w-6 h-6 text-slate-300" />
-              )}
-            </div>
-          ))}
-        </div>
-      </motion.section>
-      
-      {/* ============ BRANCHES ============ */}
-      <motion.section {...fadeInUp} className="bg-white border-y border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="flex items-center justify-between mb-6">
+
+      {/* ============================================ */}
+      {/* ✅ POPULAR CARS */}
+      {/* ============================================ */}
+      <motion.section {...fadeInUp} className="py-24 bg-white">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                Pickup Locations
+              <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full mb-3">
+                <TrendingUp className="w-3 h-3 text-emerald-600" />
+                <span className="text-emerald-700 text-xs font-semibold uppercase tracking-wider">
+                  Trending Now
+                </span>
+              </div>
+              <h2
+                className="text-3xl md:text-5xl font-bold text-slate-900 mb-2"
+                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+              >
+                Popular Cars Near You
               </h2>
-              <p className="text-slate-500 text-sm">Find a UDrive location near you</p>
+              <p className="text-slate-500 text-lg">
+                Verified vehicles ready for your next trip
+              </p>
             </div>
-            <Link to="/branches" className="text-blue-600 text-sm hover:underline flex items-center gap-1">
-              View All <ChevronRight className="w-4 h-4" />
+            <Link
+              to="/vehicles"
+              className="group text-emerald-600 text-sm font-semibold hover:text-emerald-700 flex items-center gap-1 mt-4 md:mt-0"
+            >
+              View All Cars
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
-          
-          {branches.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {branches.slice(0, 3).map((branch) => (
-                <div key={branch.id} className="card-hover bg-slate-50 rounded-xl p-4">
-                  <MapPin className="w-5 h-5 text-blue-600 mb-2" />
-                  <p className="font-semibold text-slate-900">{branch.name}</p>
-                  <p className="text-xs text-slate-500">{branch.address}</p>
-                  <p className="text-xs text-slate-400 mt-1">{branch.city}</p>
-                </div>
+
+          {featuredVehicles.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredVehicles.slice(0, 6).map((vehicle) => (
+                <Link
+                  key={vehicle.id}
+                  to={`/vehicles/${vehicle.id}`}
+                  className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-slate-100"
+                >
+                  <div className="relative h-60 overflow-hidden bg-slate-100">
+                    {vehicle.primary_image ? (
+                      <img
+                        src={vehicle.primary_image}
+                        alt={`${vehicle.brand} ${vehicle.model}`}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                        crossOrigin="anonymous"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Car className="w-16 h-16 text-slate-300" />
+                      </div>
+                    )}
+
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+
+                    <span className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-slate-800 uppercase tracking-wider shadow-md">
+                      {vehicle.vehicle_type}
+                    </span>
+
+                    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm px-2.5 py-1.5 rounded-full flex items-center gap-1 shadow-md">
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      <span className="text-xs font-bold text-slate-800">
+                        {Number(vehicle.average_rating || 0).toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-6">
+                    <h3 className="text-xl font-bold text-slate-900 mb-1 group-hover:text-emerald-600 transition-colors">
+                      {vehicle.brand} {vehicle.model}
+                    </h3>
+                    <p className="text-sm text-slate-500 mb-4">
+                      {vehicle.year} • {vehicle.branch_name || 'Available'}
+                    </p>
+
+                    <div className="flex justify-between items-end pt-4 border-t border-slate-100">
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
+                          Starting at
+                        </span>
+                        <p className="text-2xl font-bold text-emerald-600">
+                          {formatCurrency(vehicle.daily_rate)}
+                          <span className="text-sm font-normal text-slate-400">/day</span>
+                        </p>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-slate-50 group-hover:bg-emerald-500 flex items-center justify-center transition-all">
+                        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white transition-all" />
+                      </div>
+                    </div>
+                  </div>
+                </Link>
               ))}
             </div>
           ) : (
-            <Card className="py-8 text-center">
+            <Card className="py-16 text-center">
+              <Car className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500">No vehicles available yet</p>
+            </Card>
+          )}
+        </div>
+      </motion.section>
+
+      {/* ============================================ */}
+      {/* ✅ WHY CHOOSE US */}
+      {/* ============================================ */}
+      <motion.section {...fadeInUp} className="py-24 bg-slate-50">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2
+              className="text-3xl md:text-5xl font-bold text-slate-900 mb-4"
+              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            >
+              Why Choose UDrive?
+            </h2>
+            <p className="text-lg text-slate-500 max-w-2xl mx-auto">
+              Built on trust, safety, and convenience. We provide the best car rental experience.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: Shield, title: 'Verified Vehicles', desc: 'Every vehicle is thoroughly reviewed and verified before rental.', color: 'blue' },
+              { icon: Key, title: 'Secure KYC', desc: 'Identity verification for owners and renters for maximum safety.', color: 'emerald' },
+              { icon: CreditCard, title: 'Secure Payments', desc: 'SSLCommerz protected transactions with multiple payment options.', color: 'purple' },
+              { icon: Clock, title: 'Flexible Pickup', desc: 'Multiple locations across Bangladesh for your convenience.', color: 'amber' },
+            ].map((item, index) => {
+              const colors = {
+                blue: 'bg-blue-50 text-blue-600',
+                emerald: 'bg-emerald-50 text-emerald-600',
+                purple: 'bg-purple-50 text-purple-600',
+                amber: 'bg-amber-50 text-amber-600',
+              };
+              return (
+                <motion.div
+                  key={item.title}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.1, duration: 0.5 }}
+                  className="group text-center p-8 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 hover:shadow-xl transition-all duration-300"
+                >
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${colors[item.color]} group-hover:scale-110 transition-transform`}>
+                    <item.icon className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3">{item.title}</h3>
+                  <p className="text-slate-500 text-sm leading-relaxed">{item.desc}</p>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </motion.section>
+
+      {/* ============================================ */}
+      {/* ✅ HOW IT WORKS - Dark Premium */}
+      {/* ============================================ */}
+      <motion.section {...fadeInUp} className="py-24 bg-slate-900 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-emerald-500 rounded-full blur-3xl -translate-x-1/2"></div>
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-500 rounded-full blur-3xl translate-x-1/2"></div>
+        </div>
+
+        <div className="relative max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2
+              className="text-3xl md:text-5xl font-bold mb-4"
+              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            >
+              How It Works
+            </h2>
+            <p className="text-lg text-slate-400">Four simple steps to your next journey</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
+            <div className="hidden md:block absolute top-12 left-[12.5%] right-[12.5%] h-0.5 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0"></div>
+
+            {[
+              { step: '01', title: 'Search', desc: 'Find the perfect car for your needs' },
+              { step: '02', title: 'Choose', desc: 'Select dates and review pricing' },
+              { step: '03', title: 'Book', desc: 'Pay securely with SSLCommerz' },
+              { step: '04', title: 'Drive', desc: 'Pick up your car and go!' },
+            ].map((item, index) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.15, duration: 0.6 }}
+                className="relative text-center z-10"
+              >
+                <div className="w-24 h-24 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white text-2xl font-bold rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-500/30">
+                  {item.step}
+                </div>
+                <h3 className="text-xl font-bold mb-2">{item.title}</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </motion.section>
+
+      {/* ============================================ */}
+      {/* ✅ BRANCHES */}
+      {/* ============================================ */}
+      <motion.section {...fadeInUp} className="py-24 bg-white">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12">
+            <div>
+              <h2
+                className="text-3xl md:text-5xl font-bold text-slate-900 mb-2"
+                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+              >
+                Pickup Locations
+              </h2>
+              <p className="text-lg text-slate-500">Find a UDrive location near you</p>
+            </div>
+            <Link
+              to="/branches"
+              className="group text-emerald-600 text-sm font-semibold hover:text-emerald-700 flex items-center gap-1 mt-4 md:mt-0"
+            >
+              View All Locations
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+
+          {branches.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {branches.slice(0, 3).map((branch) => (
+                <motion.div
+                  key={branch.id}
+                  whileHover={{ y: -4 }}
+                  className="group bg-gradient-to-br from-slate-50 to-white border border-slate-100 rounded-2xl p-8 hover:shadow-xl hover:border-emerald-200 transition-all"
+                >
+                  <div className="w-14 h-14 bg-emerald-50 rounded-xl flex items-center justify-center mb-4 group-hover:bg-emerald-500 transition-colors">
+                    <MapPin className="w-7 h-7 text-emerald-600 group-hover:text-white transition-colors" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-lg mb-1">{branch.name}</h3>
+                  <p className="text-sm text-slate-500 mb-2">{branch.address}</p>
+                  <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wider">
+                    {branch.city}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <Card className="py-16 text-center">
               <p className="text-slate-500">Locations coming soon</p>
             </Card>
           )}
         </div>
       </motion.section>
-      
-      {/* ============ BECOME OWNER CTA ============ */}
-      <motion.section {...fadeInUp} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl p-8 md:p-12 text-white text-center">
-          <h2 className="text-2xl md:text-3xl font-bold mb-3" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-            Turn Your Car Into an Income Source
-          </h2>
-          <p className="text-blue-100 mb-6 max-w-xl mx-auto">
-            List your vehicle on UDrive, get verified, and start earning from your car.
-          </p>
-          <Link to="/become-owner">
-            <Button variant="secondary" size="lg" className="btn-hover">
-              Become a UDrive Owner
-              <ChevronRight className="w-5 h-5" />
-            </Button>
-          </Link>
+
+      {/* ============================================ */}
+      {/* ✅ BECOME OWNER CTA */}
+      {/* ============================================ */}
+      <motion.section {...fadeInUp} className="py-16 bg-white">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 rounded-3xl p-8 md:p-20 text-white text-center overflow-hidden">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+            <div className="absolute bottom-0 left-0 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+
+            <div className="relative">
+              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2 rounded-full mb-6">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm font-medium">Start Earning Today</span>
+              </div>
+
+              <h2
+                className="text-3xl md:text-5xl font-bold mb-4 max-w-3xl mx-auto leading-tight"
+                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+              >
+                Turn Your Car Into an{' '}
+                <span className="text-emerald-400">Income Source</span>
+              </h2>
+              <p className="text-slate-300 mb-8 max-w-xl mx-auto text-lg">
+                List your vehicle on UDrive, get verified, and start earning up to ৳50,000 per month.
+              </p>
+              <Link to="/become-owner">
+                <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-4 rounded-xl transition-all transform hover:scale-105 shadow-2xl shadow-emerald-500/30 inline-flex items-center gap-2">
+                  Become a UDrive Owner
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </Link>
+            </div>
+          </div>
         </div>
       </motion.section>
-      
-      {/* ============ TESTIMONIALS (DYNAMIC) ============ */}
-      <motion.section {...fadeInUp} className="bg-white border-y border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-slate-900 mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+
+      {/* ============================================ */}
+      {/* ✅ TESTIMONIALS */}
+      {/* ============================================ */}
+      <motion.section {...fadeInUp} className="py-24 bg-slate-50">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2
+              className="text-3xl md:text-5xl font-bold text-slate-900 mb-4"
+              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            >
               What Our Customers Say
             </h2>
-            <p className="text-slate-500">Real experiences from verified renters</p>
+            <p className="text-lg text-slate-500">Real experiences from verified renters</p>
           </div>
-          
+
           {reviewsLoading ? (
             <div className="flex justify-center py-12">
               <Spinner size="lg" />
             </div>
           ) : recentReviews.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {recentReviews.map((review) => (
-                <div key={review.id} className="card-hover bg-white border border-slate-200 rounded-xl p-6">
-                  <Quote className="w-8 h-8 text-blue-200 mb-3" />
-                  
-                  <div className="flex mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {recentReviews.map((review, index) => (
+                <motion.div
+                  key={review.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-xl transition-all border border-slate-100"
+                >
+                  <Quote className="w-10 h-10 text-emerald-500/20 mb-4" />
+
+                  <div className="flex mb-4">
                     {Array.from({ length: 5 }).map((_, i) => (
-                      <Star 
-                        key={i} 
-                        className={`w-4 h-4 ${
-                          i < review.rating 
-                            ? 'fill-yellow-500 text-yellow-500' 
-                            : 'text-slate-200'
-                        }`} 
+                      <Star
+                        key={i}
+                        className={`w-4 h-4 ${i < review.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'
+                          }`}
                       />
                     ))}
                   </div>
-                  
-                  <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+
+                  <p className="text-slate-600 mb-6 leading-relaxed italic">
                     "{review.comment}"
                   </p>
-                  
+
                   {review.brand && (
-                    <p className="text-xs text-blue-600 font-medium mb-3">
-                      {review.brand} {review.model} {review.year}
+                    <p className="text-xs text-emerald-600 font-semibold mb-4 uppercase tracking-wider">
+                      {review.brand} {review.model}
                     </p>
                   )}
-                  
-                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      {review.customer_avatar ? (
-                        <img
-                          src={review.customer_avatar}
-                          alt={review.customer_name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-blue-600 font-semibold text-sm">
-                          {review.customer_name?.charAt(0) || 'U'}
-                        </span>
-                      )}
+
+                  <div className="flex items-center gap-3 pt-6 border-t border-slate-100">
+                    <div className="w-11 h-11 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                      {review.customer_name?.charAt(0) || 'U'}
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-900">
-                        {review.customer_name}
-                      </p>
-                      <p className="text-[10px] text-green-600 flex items-center gap-1">
+                      <p className="text-sm font-bold text-slate-900">{review.customer_name}</p>
+                      <p className="text-xs text-emerald-600 flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" />
                         Verified Customer
                       </p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           ) : (
-            <Card className="py-12 text-center">
-              <Quote className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <Card className="py-16 text-center">
+              <Quote className="w-16 h-16 text-slate-300 mx-auto mb-4" />
               <p className="text-slate-500">No reviews yet. Be the first to review!</p>
-              <Link to="/vehicles" className="text-blue-600 text-sm hover:underline mt-2 inline-block">
-                Browse Cars
-              </Link>
             </Card>
           )}
         </div>
       </motion.section>
-      
-      {/* ============ FAQ ============ */}
-      <motion.section {...fadeInUp} className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-            Frequently Asked Questions
-          </h2>
-          <p className="text-slate-500">Common questions about renting with UDrive</p>
-        </div>
-        
-        <div className="space-y-3">
-          {[
-            { q: 'Do I need a driving license?', a: 'Yes. A valid driving license is required for self-drive rentals.' },
-            { q: 'Is a security deposit required?', a: 'Yes, depending on the vehicle and booking details.' },
-            { q: 'Can I cancel my booking?', a: 'Cancellation depends on the booking\'s cancellation policy.' },
-            { q: 'Are the vehicles verified?', a: 'Yes, vehicles go through document and inspection verification.' },
-          ].map((faq) => (
-            <div key={faq.q} className="card-hover bg-white border border-slate-200 rounded-xl p-4">
-              <p className="font-semibold text-sm text-slate-900 mb-1">{faq.q}</p>
-              <p className="text-xs text-slate-500">{faq.a}</p>
-            </div>
-          ))}
+
+      {/* ============================================ */}
+      {/* ✅ FAQ */}
+      {/* ============================================ */}
+      <motion.section {...fadeInUp} className="py-24 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2
+              className="text-3xl md:text-5xl font-bold text-slate-900 mb-4"
+              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            >
+              Frequently Asked Questions
+            </h2>
+            <p className="text-lg text-slate-500">Common questions about renting with UDrive</p>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              { q: 'Do I need a driving license?', a: 'Yes. A valid driving license is required for self-drive rentals.' },
+              { q: 'Is a security deposit required?', a: 'Yes, depending on the vehicle and booking details. The deposit is fully refundable after the trip.' },
+              { q: 'Can I cancel my booking?', a: 'Yes, cancellation is allowed with a flexible refund policy depending on how far in advance you cancel.' },
+              { q: 'Are the vehicles verified?', a: 'Absolutely. Every vehicle goes through rigorous document and inspection verification before listing.' },
+            ].map((faq, index) => (
+              <motion.div
+                key={faq.q}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-slate-50 hover:bg-white border border-slate-100 hover:border-emerald-200 rounded-2xl p-6 transition-all hover:shadow-md"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-white text-xs font-bold">?</span>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 mb-2">{faq.q}</p>
+                    <p className="text-sm text-slate-600 leading-relaxed">{faq.a}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </motion.section>
-      
-      {/* ============ FINAL CTA ============ */}
-      <section className="bg-slate-900 text-white">
-        <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-          <h2 className="text-3xl font-bold mb-3" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+
+      {/* ============================================ */}
+      {/* ✅ FINAL CTA */}
+      {/* ============================================ */}
+      <section className="bg-slate-950 text-white relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="relative max-w-5xl mx-auto px-4 py-28 text-center">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-4xl md:text-6xl font-bold mb-6"
+            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+          >
             Ready to Hit the Road?
-          </h2>
-          <p className="text-slate-300 mb-6">
-            Find a verified self-drive car for your next journey.
-          </p>
-          <Link to="/vehicles">
-            <Button size="lg" className="btn-hover">
-              <Car className="w-5 h-5" />
-              Browse Cars
-            </Button>
-          </Link>
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2 }}
+            className="text-slate-400 mb-10 text-lg max-w-xl mx-auto"
+          >
+            Find a verified self-drive car for your next journey. Book in minutes.
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.3 }}
+          >
+            <Link to="/vehicles">
+              <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-10 py-4 rounded-xl transition-all transform hover:scale-105 shadow-2xl shadow-emerald-500/30 inline-flex items-center gap-2">
+                <Car className="w-5 h-5" />
+                Browse Cars Now
+              </button>
+            </Link>
+          </motion.div>
         </div>
       </section>
     </div>
